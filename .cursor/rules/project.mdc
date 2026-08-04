@@ -1,0 +1,11 @@
+---
+description: Project-wide conventions
+globs: "**/*"
+alwaysApply: true
+---
+
+- Read `AGENTS.md` at repo root before making non-trivial changes — it has the architecture, stack, requirement IDs (R1-R9), and current status.
+- This is a two-service monorepo (`apps/web`, `apps/worker`) sharing `packages/shared-types`. Don't duplicate type definitions across services — put shared shapes in `packages/shared-types`.
+- Scope out of bounds unless explicitly asked: mobile/PWA, production DevOps hardening, large-scale storage optimisation, AI audio tagging.
+- When a change implements or touches a requirement (R1-R9), mention the requirement ID in the PR/commit description.
+- Prefer small, single-purpose commits/PRs over large multi-feature ones — this is a 4-person team project with PR review required before merge to `main`.

@@ -1,0 +1,13 @@
+---
+description: Audio worker (apps/worker) conventions
+globs: apps/worker/**
+alwaysApply: false
+---
+
+- Node.js + TypeScript. This service is NOT deployed to Vercel — assume long-running processes and local filesystem/temp file access are fine.
+- All audio manipulation goes through `ffmpeg`/`ffprobe` (shell out or a maintained binding) — never hand-roll audio parsing.
+- Extraction must be lossless:
+  - WAV: exact sample-accurate boundaries, `target_sample = target_time * sample_rate`.
+  - MP3: frame-boundary-safe cut via stream copy (no re-encode). If the requested cut point isn't on a frame boundary, export as WAV/MP3 rather than lossy re-encoding.
+- Worker reads job rows from Postgres (Supabase), downloads source audio from Supabase Storage, writes outputs back to Storage, and updates job status in Postgres — keep this pipeline explicit and resumable (a crashed job should be retryable, not silently lost).
+- Never mutate/overwrite the original uploaded audio file — it's a read-only source; only produce new derived files (waveform peaks, extracted segments).

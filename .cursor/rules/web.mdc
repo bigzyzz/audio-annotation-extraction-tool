@@ -1,0 +1,12 @@
+---
+description: Frontend (apps/web) conventions
+globs: apps/web/**
+alwaysApply: false
+---
+
+- Next.js + React + TypeScript. No untyped `.js` files — use `.ts`/`.tsx`.
+- Audio playback/waveform: use WaveSurfer.js + Web Audio API. Never decode full audio client-side for waveform display when pre-generated peak data exists from the worker — fetch and render that instead.
+- Real-time updates: subscribe via Supabase Realtime client. Every annotation mutation must include the current `version` field; handle version-conflict rejections from Postgres gracefully in the UI (don't silently overwrite).
+- All new interactive UI must be checked against Nielsen's 10 Usability Heuristics (requirement R6) — visibility of system status, error prevention, user control/freedom, consistency, etc.
+- Auth, DB queries, and storage access go through the Supabase client/SDK — no custom auth or ad-hoc REST calls to Supabase.
+- File upload must validate MP3/WAV by extension AND MIME type/header before accepting (not just extension).
