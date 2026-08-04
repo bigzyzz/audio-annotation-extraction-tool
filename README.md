@@ -2,7 +2,7 @@
 
 Web platform for audio hobbyists to collaboratively annotate and extract segments from shared MP3/WAV audio files in real-time — no more juggling Drive links, Discord, and email just to get timestamped feedback on a track.
 
-Team **S1_CS_32** — Aziz Basir, Dzuy Tra, Prachnha Tee, Vicky Wu (FIT3162).
+Team **S1_CS_32** — Aziz, Dzuy, Prachnha, Vicky (FIT3162).
 
 ## Features (planned)
 
