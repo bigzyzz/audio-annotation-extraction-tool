@@ -71,13 +71,19 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 - Commit messages: concise, explain why not just what.
 - Each PR should map back to one or more requirement IDs (R1-R9) where applicable — keeps the RTM honest.
 
-## Team / primary leads (implementation/testing/docs shared across all)
+## Team
 
-- **Aziz** — project management, docs, WBS, schedule, scope
-- **Vicky** — frontend UI/UX, Nielsen heuristic alignment
-- **Prachnha** — backend, database, real-time sync
-- **Dzuy** — QA, integration testing, latency validation, requirement verification
+4-person team, no fixed roles — everyone is a full-stack dev, works across `apps/web`, `apps/worker`, and Supabase schema as needed. Pick up whatever's next in `PROGRESS.md`.
+
+## AI-assisted workflow (how we build this)
+
+- Plan before code: for anything touching architecture or spanning multiple files, use Plan mode / discuss approach first. Small well-scoped changes go straight to implementation.
+- Prompt scope: one feature/fix per prompt. State goal, relevant files (`@` them), what NOT to touch.
+- After each feature: update `PROGRESS.md` (what shipped, what's next, any new decisions) so the next session/prompt has continuity without re-explaining.
+- Verify before moving on: run/lint/test each chunk before stacking the next feature on top.
+- Repeatable multi-step workflows (e.g. adding a new annotated feature end-to-end) live in `.cursor/skills/` — check there before improvising a workflow.
+- Rules in `.cursor/rules/` are scoped by path (`web.mdc`, `worker.mdc`) plus always-on `project.mdc` — keep them updated when conventions change, don't let them drift from reality.
 
 ## Current status
 
-Repo scaffolded (folder structure, workspace config, planning docs). No app code yet — Next.js app, worker service, and Supabase schema are all upcoming iterations. Update this section as milestones land.
+Repo scaffolded (folder structure, workspace config, planning docs). No app code yet — Next.js app, worker service, and Supabase schema are all upcoming iterations. See `PROGRESS.md` for the live task log.
