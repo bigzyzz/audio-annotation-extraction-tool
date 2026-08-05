@@ -13,16 +13,16 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- Scaffolded `apps/web` (`create-next-app`: TS, App Router, Tailwind, `src/` dir) + `apps/worker` (hand-rolled: `package.json`/`tsconfig.json`/poll-loop skeleton, `fluent-ffmpeg` wired for ffprobe). Both boot clean (`pnpm dev:web` / `pnpm dev:worker`) and pass `pnpm -r lint` / `pnpm -r build`. Worker's poll loop queries `extraction_jobs` and gracefully no-ops until that table exists.
 - Repo scaffolded: pnpm monorepo (`apps/web`, `apps/worker`, `packages/shared-types`), `AGENTS.md`, `.cursor/rules/`.
 
 ## In Progress
 
-- Nothing currently in flight.
+- Nothing currently in flight. Blocked on: a team member needs to create the actual Supabase project (dashboard login required, can't be scripted) and share URL/anon/service-role keys before the next session can wire up real auth/DB/storage.
 
 ## Up Next
 
-- [ ] Scaffold `apps/web` with `create-next-app` (TypeScript, App Router)
-- [ ] Scaffold `apps/worker` (Node + TypeScript, ffmpeg/ffprobe wired up)
+- [ ] Create Supabase project (dashboard), distribute URL/anon key/service-role key to the team
 - [ ] Define Supabase schema: users, audio_files, annotations (with `version` column), extraction_jobs
 - [ ] Set up Supabase RLS policies
 - [ ] R5: auth (signup/login) UI + Supabase Auth wiring
@@ -36,4 +36,5 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Decisions Log
 
-- _(none yet beyond what's already in AGENTS.md)_
+- `apps/worker` was hand-rolled (no generator/CLI exists for a bare Node+TS+ffmpeg service) rather than scaffolded — `tsx` for dev (watch mode), plain `tsc` for build, `fluent-ffmpeg` for the ffprobe/ffmpeg wrapper (never hand-roll audio parsing, per `.cursor/rules/worker.mdc`).
+- `apps/web/.env.local` and `apps/worker/.env` contain placeholder (unreachable) Supabase values purely so `next dev`/`next build` and the worker's poll loop boot locally without crashing on missing env vars. Both files are gitignored — replace with real project creds once the Supabase project exists.
