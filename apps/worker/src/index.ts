@@ -1,36 +1,22 @@
 import "dotenv/config";
+import type { ExtractionJob } from "@audio-tool/shared-types";
 import { supabase } from "./lib/supabase.js";
 
 const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_INTERVAL_MS ?? 2000);
 
-// Placeholder job shape until packages/shared-types defines the real
-// extraction_jobs row type (next iteration, alongside the Supabase schema).
-interface PendingJob {
-  id: string;
-  status: string;
-}
-
-async function fetchPendingJobs(): Promise<PendingJob[]> {
+async function fetchPendingJobs(): Promise<ExtractionJob[]> {
   const { data, error } = await supabase
     .from("extraction_jobs")
-    .select("id, status")
+    .select("*")
     .eq("status", "pending")
     .limit(10);
 
-  if (error) {
-    // extraction_jobs doesn't exist yet (schema not defined) — expected
-    // until the Supabase schema iteration lands. Treat as "no jobs".
-    // PGRST205 = PostgREST "table not found in schema cache" (what Supabase's
-    // REST layer actually returns); 42P01 = raw Postgres "relation does not
-    // exist" (kept as a fallback in case this ever hits Postgres directly).
-    if (error.code === "PGRST205" || error.code === "42P01") return [];
-    throw error;
-  }
+  if (error) throw error;
 
   return data ?? [];
 }
 
-async function processJob(job: PendingJob): Promise<void> {
+async function processJob(job: ExtractionJob): Promise<void> {
   // Real pipeline (download from Storage, ffmpeg cut, upload result, update
   // status) lands with the extraction feature — this is scaffolding only.
   console.log(`[worker] would process job ${job.id}`);
