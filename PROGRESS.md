@@ -13,6 +13,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- R5: auth signup/login UI + Supabase Auth wiring. `@supabase/ssr` browser/server clients (`apps/web/src/lib/supabase/{client,server}.ts`) replace the old plain `createClient` so sessions are cookie-based and readable from Server Components/Actions. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) refreshes the session on every request. Signup (`/signup`) collects username + email + password via a Server Action calling `supabase.auth.signUp({ options: { data: { username } } })`; login (`/login`) via `signInWithPassword`; logout via a Server Action in the header. Session-aware `SiteHeader` + landing page show signed-in/out state. Verified end-to-end against the real Supabase project (signup -> `profiles` trigger fires with correct username -> login -> logout; duplicate-username signup correctly rejected).
 - Defined core Supabase schema (`profiles`, `audio_files`, `annotations`, `extraction_jobs`) + RLS policies in one migration (`supabase/migrations/20260805055116_create_core_schema.sql`), applied via Supabase CLI (`supabase db push --linked`). Scaffolded `packages/shared-types` with `supabase gen types`-generated row types (`Profile`, `AudioFile`, `Annotation`, `ExtractionJob`), wired into both `apps/web` and `apps/worker`. Worker's poll loop now queries the real `extraction_jobs` table cleanly (no more `PGRST205`).
 - Created Supabase project (`qsfteifrmlvftedleapa`), verified URL/anon/service-role keys work end-to-end from both `apps/web/.env.local` and `apps/worker/.env`.
 - Scaffolded `apps/web` (`create-next-app`: TS, App Router, Tailwind, `src/` dir) + `apps/worker` (hand-rolled: `package.json`/`tsconfig.json`/poll-loop skeleton, `fluent-ffmpeg` wired for ffprobe). Both boot clean (`pnpm dev:web` / `pnpm dev:worker`) and pass `pnpm -r lint` / `pnpm -r build`. ([PR #1](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/1), merged)
@@ -24,7 +25,6 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Up Next
 
-- [ ] R5: auth (signup/login) UI + Supabase Auth wiring — schema already supports it (`profiles` auto-populated via trigger on `auth.users` insert, reading `username` from signup metadata)
 - [ ] R1: file upload + validation (extension + MIME/header check)
 - [ ] R2: waveform playback (WaveSurfer.js) + basic controls
 - [ ] R3: real-time annotation UI + Supabase Realtime subscription
@@ -35,6 +35,11 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Decisions Log
 
+- Auth uses `@supabase/ssr` (browser + server clients + `proxy.ts` session refresh), not plain `@supabase/supabase-js`, so the session cookie is readable from both Client and Server Components/Actions in the App Router. `apps/web/src/lib/supabase.ts` (plain client) is gone — use `lib/supabase/client.ts` (Client Components) or `lib/supabase/server.ts` (Server Components/Actions).
+- Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` (exported function `proxy`, Node-only runtime, no more Edge option for this layer) — we're on `proxy.ts` from the start rather than the deprecated name.
+- Supabase project (`qsfteifrmlvftedleapa`) has "Confirm email" ON — verified empirically. `signup()` handles this: no session in the `signUp()` response means show a "check your email" state instead of redirecting. If the team wants instant sign-in for demos, toggle it off in the dashboard (Authentication -> Providers -> Email); no code change needed either way.
+- Duplicate-username detection on signup is a heuristic, not a specific error code: GoTrue doesn't forward the underlying Postgres unique-violation from the `handle_new_user()` trigger — verified empirically it surfaces as a generic `AuthRetryableFetchError`, HTTP 500, opaque message. `signup()` treats any `status === 500` from `signUp()` as "likely duplicate username". Acceptable for now but imprecise (a genuine 500 would get mislabeled); revisit with a pre-flight `is_username_taken(username)` RPC (`security definer`, callable by `anon`) if this causes confusion in practice.
+- Default Supabase project email sending has a low rate limit (hit it after ~4-5 signups in quick succession during testing) — expected on the default shared SMTP tier, not a bug. Fine for dev; revisit (custom SMTP) before any real demo/user testing that involves multiple signups in a short window.
 - Schema managed via Supabase CLI migrations checked into `supabase/migrations/` (not dashboard-only manual SQL) — reproducible, versioned, team can re-run. Requires a personal access token (`supabase.com/dashboard/account/tokens`) to `link`/`db push`/`gen types`; not stored anywhere in the repo.
 - RLS policies shipped in the same migration as table creation (not a separate PR) — no window where tables exist without policies.
 - RLS model is **open collaboration**: any authenticated user can `select` all rows across `profiles`/`audio_files`/`annotations`/`extraction_jobs`, but can only `insert`/`update`/`delete` rows they own/authored. Matches R9 (file search implies files are discoverable by all users) and the collaborative-annotation premise. If the team later wants per-file access lists (e.g. invite-only annotators), this needs revisiting — it's an assumption, not a stated requirement.
