@@ -8,11 +8,13 @@ Living task log. Update after every feature/session so the next prompt (human or
 - **In Progress**: what's actively being worked on right now, by what (session/branch).
 - **Up Next**: near-term backlog, roughly ordered.
 - **Decisions Log**: any decision made mid-build that changes or refines something in `AGENTS.md` — then also update `AGENTS.md` itself if it's a lasting convention.
+- **Risks**: if the feature creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR. `project_plan.pdf` is the submitted snapshot; the markdown file is the living register.
 
 ---
 
 ## Done
 
+- Added living `RISK_REGISTER.md` (RK1–RK12) so the unit risk register is versioned in-repo rather than only in `project_plan.pdf`. Update it in the same PR as the feature that creates/changes/closes a risk; fortnightly 5-min scan of Open + High rows.
 - R5: auth signup/login UI + Supabase Auth wiring. `@supabase/ssr` browser/server clients (`apps/web/src/lib/supabase/{client,server}.ts`) replace the old plain `createClient` so sessions are cookie-based and readable from Server Components/Actions. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) refreshes the session on every request. Signup (`/signup`) collects username + email + password via a Server Action calling `supabase.auth.signUp({ options: { data: { username } } })`; login (`/login`) via `signInWithPassword`; logout via a Server Action in the header. Session-aware `SiteHeader` + landing page show signed-in/out state. Verified end-to-end against the real Supabase project (signup -> `profiles` trigger fires with correct username -> login -> logout; duplicate-username signup correctly rejected).
 - Defined core Supabase schema (`profiles`, `audio_files`, `annotations`, `extraction_jobs`) + RLS policies in one migration (`supabase/migrations/20260805055116_create_core_schema.sql`), applied via Supabase CLI (`supabase db push --linked`). Scaffolded `packages/shared-types` with `supabase gen types`-generated row types (`Profile`, `AudioFile`, `Annotation`, `ExtractionJob`), wired into both `apps/web` and `apps/worker`. Worker's poll loop now queries the real `extraction_jobs` table cleanly (no more `PGRST205`).
 - Created Supabase project (`qsfteifrmlvftedleapa`), verified URL/anon/service-role keys work end-to-end from both `apps/web/.env.local` and `apps/worker/.env`.
@@ -35,6 +37,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Decisions Log
 
+- Living risk register is `RISK_REGISTER.md` in the repo, not `project_plan.pdf`. PDF stays as the submitted snapshot. Update the markdown file in the same PR as the feature that creates/changes/closes a risk; 5-min scan of Open + High rows in the fortnightly meeting.
 - Auth uses `@supabase/ssr` (browser + server clients + `proxy.ts` session refresh), not plain `@supabase/supabase-js`, so the session cookie is readable from both Client and Server Components/Actions in the App Router. `apps/web/src/lib/supabase.ts` (plain client) is gone — use `lib/supabase/client.ts` (Client Components) or `lib/supabase/server.ts` (Server Components/Actions).
 - Next.js 16 renamed the `middleware.ts` convention to `proxy.ts` (exported function `proxy`, Node-only runtime, no more Edge option for this layer) — we're on `proxy.ts` from the start rather than the deprecated name.
 - Supabase project (`qsfteifrmlvftedleapa`) has "Confirm email" ON — verified empirically. `signup()` handles this: no session in the `signUp()` response means show a "check your email" state instead of redirecting. If the team wants instant sign-in for demos, toggle it off in the dashboard (Authentication -> Providers -> Email); no code change needed either way.

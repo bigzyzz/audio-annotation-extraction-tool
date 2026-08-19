@@ -16,7 +16,7 @@ Task Progress:
 - [ ] 3. Backend: apps/worker job type (if audio processing) or Supabase RLS policy / API route (apps/web) as needed.
 - [ ] 4. Frontend: apps/web UI, wired to Supabase client directly or via API route.
 - [ ] 5. Verify: run/lint/typecheck. For real-time features, sanity-check the <2s sync latency requirement (R7).
-- [ ] 6. Update PROGRESS.md: move item from "Up Next" to "Done", note any decisions made.
+- [ ] 6. Update PROGRESS.md: move item from "Up Next" to "Done", note any decisions made. If a risk was created, changed, or closed, update RISK_REGISTER.md in the same PR.
 ```
 
 ## Rules of thumb
