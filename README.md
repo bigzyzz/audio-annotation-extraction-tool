@@ -26,7 +26,7 @@ Full technical proposal, requirements traceability matrix, original risk registe
 
 ## Status
 
-R5 auth UI is live; next is R1 file upload. See `PROGRESS.md` for the task log and `AGENTS.md` for architecture/stack/conventions.
+R5 auth UI is live; next is R1 file upload (tickets T1–T4 in `BACKLOG.md`). See `PROGRESS.md` for the task log and `AGENTS.md` for architecture/stack/conventions.
 
 ## Getting started
 

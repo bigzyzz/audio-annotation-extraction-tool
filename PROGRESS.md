@@ -10,11 +10,13 @@ Living task log. Update after every feature/session so the next prompt (human or
 - **Decisions Log**: any decision made mid-build that changes or refines something in `AGENTS.md` — then also update `AGENTS.md` itself if it's a lasting convention.
 - **Risks**: if the feature creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR. `project_plan.pdf` is the submitted snapshot; the markdown file is the living register.
 - **Stories**: `USER_STORIES.md` is the Done-when list (US1–US14 → R1–R9). Tick/confirm the matching US in the feature PR; don’t treat stories as implementation slices.
+- **Tickets**: `BACKLOG.md` is the implementation split (T1–T4 for R1). One GitHub Issue per ticket; one In Progress per person.
 
 ---
 
 ## Done
 
+- Added `BACKLOG.md`: R1 split into tickets T1–T4 (storage, validate, upload UI, list + ffprobe). One person each; T1 merges first. GitHub Issues not created from this machine (`gh` not logged in) — paste from `BACKLOG.md`.
 - Added living `USER_STORIES.md` (US1–US14): cleaned team draft mapped to R1–R9. Deduped, dropped Backend/UX tags, added missing validation / preview / sync / usability checks. Stories = acceptance; RTM still wins for scope.
 - Added living `RISK_REGISTER.md` (RK1–RK18): implementation risks plus all 9 rows from `project_plan.pdf` Appendix B (PDF R1–R9 mapped to RK* so they don’t collide with requirement IDs). Weekly sprint-review scan of Open + High rows.
 - R5: auth signup/login UI + Supabase Auth wiring. `@supabase/ssr` browser/server clients (`apps/web/src/lib/supabase/{client,server}.ts`) replace the old plain `createClient` so sessions are cookie-based and readable from Server Components/Actions. `src/proxy.ts` (Next.js 16's replacement for `middleware.ts`) refreshes the session on every request. Signup (`/signup`) collects username + email + password via a Server Action calling `supabase.auth.signUp({ options: { data: { username } } })`; login (`/login`) via `signInWithPassword`; logout via a Server Action in the header. Session-aware `SiteHeader` + landing page show signed-in/out state. Verified end-to-end against the real Supabase project (signup -> `profiles` trigger fires with correct username -> login -> logout; duplicate-username signup correctly rejected).
@@ -29,7 +31,15 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Up Next
 
-- [ ] R1: file upload + validation (extension + MIME/header check)
+R1 split — one ticket per person, details in `BACKLOG.md`:
+
+- [ ] **T1** R1 Storage bucket + RLS (`audio`) — blocker, merge first
+- [ ] **T2** R1 Validate MP3/WAV (extension + MIME + header) — US5
+- [ ] **T3** R1 Upload UI — US4, US5 (needs T2; live E2E needs T1)
+- [ ] **T4** R1 File list + ffprobe metadata — US4 (needs T1)
+
+Then:
+
 - [ ] R2: waveform playback (WaveSurfer.js) + basic controls
 - [ ] R3: real-time annotation UI + Supabase Realtime subscription
 - [ ] R9: file search
