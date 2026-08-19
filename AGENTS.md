@@ -86,4 +86,4 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 ## Current status
 
-Monorepo + Supabase schema/RLS + R5 auth UI shipped. Next: R1 file upload. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`.
+Monorepo + Supabase schema/RLS + R5 auth UI shipped. Next: R1 file upload. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.

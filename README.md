@@ -22,7 +22,7 @@ Monorepo (pnpm workspaces):
 
 Backend: [Supabase](https://supabase.com) (PostgreSQL, Auth, Storage, Realtime, Row Level Security).
 
-Full technical proposal, requirements traceability matrix, original risk register, and architecture diagram: `project_plan.pdf`. Living risk register (update this, not the PDF): `RISK_REGISTER.md`.
+Full technical proposal, requirements traceability matrix, original risk register, and architecture diagram: `project_plan.pdf`. Living risk register: `RISK_REGISTER.md`. Living user stories (acceptance / Done when): `USER_STORIES.md`.
 
 ## Status
 
