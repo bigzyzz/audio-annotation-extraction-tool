@@ -17,7 +17,7 @@ Implementation tickets. User stories (`USER_STORIES.md`) = Done when. This file 
 
 ## Epic: R1 file upload (US4, US5)
 
-Parent. Close when T1–T4 are Done. RK11 → Mitigated when T2+T3 land.
+Parent. Close when T1–T4 are Done. RK14 → Mitigated when T2+T3 land.
 
 ### T1 — Storage bucket + RLS (blocker)
 
@@ -37,11 +37,11 @@ Title: T1: R1 Storage bucket + RLS (audio)
 
 ### T2 — Validate MP3/WAV (extension + MIME + header)
 
-**Assignee:** (slice B)  
+**Assignee:** Aziz (`feat/r1-t2-validate`) — **Done** (helper + 9 tests)  
 **Blocked by:** nothing  
 **Blocks:** T3
 
-Pure TS helper + tests. Extension whitelist AND MIME AND magic bytes (WAV `RIFF....WAVE`; MP3 `ID3` or frame sync `0xFF 0xE?`). Friendly error string. Reject spoofed `.txt`→`.mp3` (US5, RK11).
+Pure TS helper + tests. Extension whitelist AND MIME AND magic bytes (WAV `RIFF....WAVE`; MP3 `ID3` or frame sync `0xFF 0xE?`). Friendly error string. Reject spoofed `.txt`→`.mp3` (US5, RK14).
 
 **Touch:** `apps/web/src/lib/audio-validate.ts` + tests. Nobody else edits this file.
 

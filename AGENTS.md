@@ -87,4 +87,4 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 ## Current status
 
-Monorepo + Supabase schema/RLS + R5 auth UI shipped. R1 T1 (`audio` bucket + storage RLS) applied on linked project. Next: T2–T4 in `BACKLOG.md`. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.
+Monorepo + Supabase schema/RLS + R5 auth UI shipped. R1 T1 (`audio` bucket) live. R1 T2 (MP3/WAV validator) on `feat/r1-t2-validate`. Next: T3–T4 in `BACKLOG.md`. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.
