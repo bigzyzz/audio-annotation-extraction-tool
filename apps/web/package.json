@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "tsx --test src/lib/audio-validate.test.ts"
   },
   "dependencies": {
     "@audio-tool/shared-types": "workspace:*",
@@ -24,6 +25,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
+    "tsx": "^4.19.0",
     "typescript": "^5"
   },
   "packageManager": "pnpm@9.0.0"
