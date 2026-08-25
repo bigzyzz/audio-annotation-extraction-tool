@@ -21,7 +21,7 @@ Parent. Close when T1–T4 are Done. RK11 → Mitigated when T2+T3 land.
 
 ### T1 — Storage bucket + RLS (blocker)
 
-**Assignee:** (slice A)  
+**Assignee:** Aziz (`feat/r1-t1-storage`) — **Done** (migration applied + RLS verified on linked project)  
 **Blocked by:** nothing  
 **Blocks:** T3 (live E2E), T4 (live list)
 

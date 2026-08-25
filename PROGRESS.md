@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T1 (R1): Storage bucket `audio` + RLS. Migration `20260825131000_create_audio_storage_bucket.sql` pushed to linked project. Bucket not world-public (50 MiB). Authenticated read-all; write only under `{auth.uid()}/…`. Verified live: owner upload ok, other-user read ok, cross-folder write denied, anon write denied. Unblocks T3 E2E and T4 list. US4 still open (needs T3/T4).
 - Added `BACKLOG.md`: R1 split into tickets T1–T4 (storage, validate, upload UI, list + ffprobe). One person each; T1 merges first. GitHub Issues not created from this machine (`gh` not logged in) — paste from `BACKLOG.md`.
 - Added living `USER_STORIES.md` (US1–US14): cleaned team draft mapped to R1–R9. Deduped, dropped Backend/UX tags, added missing validation / preview / sync / usability checks. Stories = acceptance; RTM still wins for scope.
 - Added living `RISK_REGISTER.md` (RK1–RK18): implementation risks plus all 9 rows from `project_plan.pdf` Appendix B (PDF R1–R9 mapped to RK* so they don’t collide with requirement IDs). Weekly sprint-review scan of Open + High rows.
@@ -33,7 +34,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 R1 split — one ticket per person, details in `BACKLOG.md`:
 
-- [ ] **T1** R1 Storage bucket + RLS (`audio`) — blocker, merge first
+- [x] **T1** R1 Storage bucket + RLS (`audio`) — live on linked project; branch `feat/r1-t1-storage`
 - [ ] **T2** R1 Validate MP3/WAV (extension + MIME + header) — US5
 - [ ] **T3** R1 Upload UI — US4, US5 (needs T2; live E2E needs T1)
 - [ ] **T4** R1 File list + ffprobe metadata — US4 (needs T1)
@@ -49,6 +50,7 @@ Then:
 
 ## Decisions Log
 
+- Storage bucket `audio` is **not** world-public (`public = false`). Authenticated users can `select` every object (same open-collab read as `audio_files`); insert/update/delete only under `{auth.uid()}/…`. 50 MiB size cap is on the bucket; MIME/magic-byte checks stay in T2. R2 playback should use a signed URL or authenticated download, not `/object/public`.
 - Branch names use `feat/` `chore/` `docs/` `fix/` — never `cursor/` (Cursor cloud auto-prefix). Renamed `cursor/risk-register` → `chore/risk-register`.
 - Living user stories are `USER_STORIES.md` (US1–US14). Cleaned from the team draft: deduped, mapped to R1–R9, Backend/UX tags dropped. Preview-before-extract (US11) kept even though it is not explicit in the RTM. Stories are Done-when checks; do not use them as implementation slices.
 - Living risk register is `RISK_REGISTER.md` in the repo, not `project_plan.pdf`. PDF Appendix B stays as the submitted snapshot (its R1–R9 clash with requirement IDs, so living IDs are RK*). Update the markdown file in the same PR as the feature that creates/changes/closes a risk; 5-min scan of Open + High rows in the weekly sprint review.
