@@ -68,6 +68,7 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 - TypeScript everywhere (`apps/web`, `apps/worker`, `packages/shared-types`) — no untyped JS.
 - Feature branches -> PR -> review -> merge to `main`. No direct pushes to `main`.
+- Branch names: `feat/`, `chore/`, `docs/`, `fix/` — never `cursor/` (Cursor cloud auto-prefix). Examples: `chore/risk-register`, `feat/r1-t1-storage`.
 - Commit messages: concise, explain why not just what.
 - Each PR should map back to one or more requirement IDs (R1-R9) where applicable — keeps the RTM honest.
 

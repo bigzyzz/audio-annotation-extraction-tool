@@ -49,6 +49,7 @@ Then:
 
 ## Decisions Log
 
+- Branch names use `feat/` `chore/` `docs/` `fix/` — never `cursor/` (Cursor cloud auto-prefix). Renamed `cursor/risk-register` → `chore/risk-register`.
 - Living user stories are `USER_STORIES.md` (US1–US14). Cleaned from the team draft: deduped, mapped to R1–R9, Backend/UX tags dropped. Preview-before-extract (US11) kept even though it is not explicit in the RTM. Stories are Done-when checks; do not use them as implementation slices.
 - Living risk register is `RISK_REGISTER.md` in the repo, not `project_plan.pdf`. PDF Appendix B stays as the submitted snapshot (its R1–R9 clash with requirement IDs, so living IDs are RK*). Update the markdown file in the same PR as the feature that creates/changes/closes a risk; 5-min scan of Open + High rows in the weekly sprint review.
 - Auth uses `@supabase/ssr` (browser + server clients + `proxy.ts` session refresh), not plain `@supabase/supabase-js`, so the session cookie is readable from both Client and Server Components/Actions in the App Router. `apps/web/src/lib/supabase.ts` (plain client) is gone — use `lib/supabase/client.ts` (Client Components) or `lib/supabase/server.ts` (Server Components/Actions).
