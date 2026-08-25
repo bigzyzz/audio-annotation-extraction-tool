@@ -68,6 +68,7 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 - TypeScript everywhere (`apps/web`, `apps/worker`, `packages/shared-types`) — no untyped JS.
 - Feature branches -> PR -> review -> merge to `main`. No direct pushes to `main`.
+- Branch names: `feat/`, `chore/`, `docs/`, `fix/` — never `cursor/` (Cursor cloud auto-prefix). Examples: `chore/risk-register`, `feat/r1-t1-storage`.
 - Commit messages: concise, explain why not just what.
 - Each PR should map back to one or more requirement IDs (R1-R9) where applicable — keeps the RTM honest.
 
@@ -79,11 +80,11 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 - Plan before code: for anything touching architecture or spanning multiple files, use Plan mode / discuss approach first. Small well-scoped changes go straight to implementation.
 - Prompt scope: one feature/fix per prompt. State goal, relevant files (`@` them), what NOT to touch.
-- After each feature: update `PROGRESS.md` (what shipped, what's next, any new decisions) so the next session/prompt has continuity without re-explaining.
+- After each feature: update `PROGRESS.md` (what shipped, what's next, any new decisions) so the next session/prompt has continuity without re-explaining. If the work creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR (`project_plan.pdf` is the submitted snapshot; the markdown file is the living register).
 - Verify before moving on: run/lint/test each chunk before stacking the next feature on top.
 - Repeatable multi-step workflows (e.g. adding a new annotated feature end-to-end) live in `.cursor/skills/` — check there before improvising a workflow.
 - Rules in `.cursor/rules/` are scoped by path (`web.mdc`, `worker.mdc`) plus always-on `project.mdc` — keep them updated when conventions change, don't let them drift from reality.
 
 ## Current status
 
-Repo scaffolded (folder structure, workspace config, planning docs). No app code yet — Next.js app, worker service, and Supabase schema are all upcoming iterations. See `PROGRESS.md` for the live task log.
+Monorepo + Supabase schema/RLS + R5 auth UI shipped. Next: R1 file upload (T1–T4 in `BACKLOG.md`). Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.

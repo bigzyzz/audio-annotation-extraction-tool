@@ -9,5 +9,6 @@ alwaysApply: true
 - Scope out of bounds unless explicitly asked: mobile/PWA, production DevOps hardening, large-scale storage optimisation, AI audio tagging.
 - When a change implements or touches a requirement (R1-R9), mention the requirement ID in the PR/commit description.
 - Prefer small, single-purpose commits/PRs over large multi-feature ones — this is a 4-person team project with PR review required before merge to `main`.
-- No fixed roles — everyone works across web, worker, and DB schema. After finishing a feature, update `PROGRESS.md` (what shipped, what's next, new decisions) so later sessions have continuity.
+- Branch names: `feat/`, `chore/`, `docs/`, `fix/` — never `cursor/` (Cursor auto-prefix).
+- No fixed roles — everyone works across web, worker, and DB schema. After finishing a feature, update `PROGRESS.md` (what shipped, what's next, new decisions) so later sessions have continuity. If the work creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR.
 - For a repeatable multi-step workflow (e.g. adding a new feature end-to-end), check `.cursor/skills/` first instead of improvising each time.

@@ -22,11 +22,11 @@ Monorepo (pnpm workspaces):
 
 Backend: [Supabase](https://supabase.com) (PostgreSQL, Auth, Storage, Realtime, Row Level Security).
 
-Full technical proposal, requirements traceability matrix, risk register, and architecture diagram: `project_plan.pdf`.
+Full technical proposal, requirements traceability matrix, original risk register, and architecture diagram: `project_plan.pdf`. Living risk register: `RISK_REGISTER.md`. Living user stories (acceptance / Done when): `USER_STORIES.md`.
 
 ## Status
 
-Early scaffolding stage — no app code yet. See `AGENTS.md` for full project context (architecture, stack, requirements, conventions) if you're an AI agent or new contributor picking this up.
+R5 auth UI is live; next is R1 file upload (tickets T1–T4 in `BACKLOG.md`). See `PROGRESS.md` for the task log and `AGENTS.md` for architecture/stack/conventions.
 
 ## Getting started
 
