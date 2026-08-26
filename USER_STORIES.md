@@ -24,7 +24,7 @@ As a hobbyist, I want my password stored securely, so that my account is not com
 
 **US4 — Upload a track**
 As a hobbyist, I want to upload my own MP3 or WAV, so that I can get timestamped feedback on it.
-**Done when:** a signed-in user can upload `.mp3` or `.wav`; the file appears in the file list; a row exists in `audio_files`.
+**Done when:** a signed-in user can upload `.mp3` or `.wav`; the file appears in the file list; a row exists in `audio_files`. — met by T3+T4 (upload on `/upload` and home; list on home).
 
 **US5 — Reject junk files**
 As a hobbyist, I want the tool to refuse files that are not real MP3/WAV, so that I do not break the library or waste processing.

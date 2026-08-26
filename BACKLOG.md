@@ -69,7 +69,7 @@ Title: T3: R1 Upload UI
 
 ### T4 — File list + ffprobe metadata
 
-**Assignee:** (slice D)  
+**Assignee:** Aziz (`feat/r1-t4-list-ffprobe`) — **Done** (home list + worker probe)  
 **Blocked by:** T1 (live data); T3 for a real upload path (can seed a row to start)
 
 Signed-in home list: filename, format, duration or “processing…”. Worker: poll `audio_files` where `duration_seconds is null`, ffprobe, update duration + sample_rate. **No** waveform peaks (R2).

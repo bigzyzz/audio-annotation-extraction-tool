@@ -1,6 +1,7 @@
 import "dotenv/config";
 import type { ExtractionJob } from "@audio-tool/shared-types";
 import { supabase } from "./lib/supabase.js";
+import { probePendingAudioFiles } from "./probe.js";
 
 const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_INTERVAL_MS ?? 2000);
 
@@ -23,11 +24,9 @@ async function processJob(job: ExtractionJob): Promise<void> {
 }
 
 async function pollOnce(): Promise<void> {
+  await probePendingAudioFiles();
+
   const jobs = await fetchPendingJobs();
-  if (jobs.length === 0) {
-    console.log("[worker] no pending jobs");
-    return;
-  }
   for (const job of jobs) {
     await processJob(job);
   }

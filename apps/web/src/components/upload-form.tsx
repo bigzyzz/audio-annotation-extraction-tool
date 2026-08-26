@@ -23,7 +23,11 @@ function statusLabel(status: Status): string | null {
   }
 }
 
-export function UploadForm() {
+type UploadFormProps = {
+  onUploaded?: () => void;
+};
+
+export function UploadForm({ onUploaded }: UploadFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -106,6 +110,7 @@ export function UploadForm() {
     setSuccess(`Uploaded “${file.name}”.`);
     setFile(null);
     if (inputRef.current) inputRef.current.value = "";
+    onUploaded?.();
   }
 
   return (
