@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { AudioLibrary } from "@/components/audio-library";
+import type { FileListItem } from "@/components/file-list";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -12,17 +14,32 @@ export default async function Home() {
       ? user.user_metadata.username
       : user?.email;
 
+  let files: FileListItem[] = [];
+  if (user) {
+    const { data } = await supabase
+      .from("audio_files")
+      .select("id, filename, format, duration_seconds, created_at")
+      .order("created_at", { ascending: false });
+    files = data ?? [];
+  }
+
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+    <main
+      className={`mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 ${
+        user ? "gap-8 py-12" : "items-center justify-center gap-4 text-center"
+      }`}
+    >
       {user ? (
         <>
-          <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
-            Welcome back, {username}
-          </h1>
-          <p className="max-w-md text-zinc-600 dark:text-zinc-400">
-            File upload, playback, and annotation are coming in the next
-            iterations.
-          </p>
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
+              Welcome back, {username}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              Upload a track or open one from the library.
+            </p>
+          </div>
+          <AudioLibrary initialFiles={files} />
         </>
       ) : (
         <>
