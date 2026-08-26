@@ -53,7 +53,7 @@ Title: T2: R1 Validate MP3/WAV (extension + MIME + header)
 
 ### T3 — Upload UI
 
-**Assignee:** (slice C)  
+**Assignee:** Aziz (`feat/r1-t3-upload`) — **Done** (form + live E2E)  
 **Blocked by:** T2 (helper); T1 for live E2E (mock Storage until T1 merges)  
 **Blocks:** T4 (needs rows)
 
