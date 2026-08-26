@@ -28,7 +28,7 @@ As a hobbyist, I want to upload my own MP3 or WAV, so that I can get timestamped
 
 **US5 — Reject junk files**
 As a hobbyist, I want the tool to refuse files that are not real MP3/WAV, so that I do not break the library or waste processing.
-**Done when:** a `.txt` renamed to `.mp3` (or other spoofed extension) is rejected with a clear error; no Storage object and no `audio_files` row. (RK14)
+**Done when:** a `.txt` renamed to `.mp3` (or other spoofed extension) is rejected with a clear error; no Storage object and no `audio_files` row. (RK14) — met by T2+T3 on `/upload`.
 
 ## R2 — Playback
 
