@@ -16,7 +16,8 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
-- T5 (R2): Worker waveform peaks. ffmpeg downsample → compact peaks JSON; `waveform_peaks_path` after probe/backfill. Shared `WaveformPeaksDocument`. Closes #20 ([#24](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/24)).
+- T6 (R2): Signed playback URL helper. `createSignedPlaybackUrl` for private `audio` bucket objects. Closes #21 ([#25](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/25)).
+- T5 (R2): Worker waveform peaks. ffmpeg downsample → compact peaks JSON at `{owner_id}/{id}.peaks.json`; sets `waveform_peaks_path` after probe or backfill poll. Shared `WaveformPeaksDocument` type. Closes #20 ([#24](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/24)).
 - T4 (R1): File list + ffprobe. Signed-in home composes `UploadForm` + `FileList` (filename, format, duration or “Processing…”). Worker polls `audio_files` where `duration_seconds is null`, downloads Storage object, ffprobe, writes duration + sample_rate. List polls every 2s so duration fills without a reload. No waveform peaks (R2). Closes US4. Branch `feat/r1-t4-list-ffprobe`.
 - T3 (R1): Upload UI. `/upload` dropzone + picker; `validateAudioFile` then Storage `{uid}/{id}.{mp3|wav}` then `audio_files` insert (no row until upload ok; insert fail deletes object). Submit disabled while pending (US14). Verified live: real `tiny.mp3` created a row; spoofed `.txt`→`.mp3` showed the magic-byte error and wrote nothing. Home `page.tsx` untouched (T4 composes). Closes #14. US4 list still T4. RK14 → Mitigated.
 - T2 (R1): MP3/WAV validator (`apps/web/src/lib/audio-validate.ts`). Extension whitelist AND MIME AND magic bytes (WAV `RIFF....WAVE`; MP3 `ID3` or frame sync `0xFF 0xE?`). 9 tests including US5 spoofed `.txt`→`.mp3`. Empty MIME allowed only when ext+magic already agree. T3 must call this before upload. US5 UI error still T3. RK14 stays Monitored until T3 wires it. Closes #13.
@@ -46,7 +47,7 @@ R1 split — one ticket per person, details in `BACKLOG.md`:
 R2 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #5):
 
 - [x] **T5** R2 Worker waveform peaks — #20 `feat/r2-t5-peaks`
-- [ ] **T6** R2 Signed playback URL helper — #21 `feat/r2-t6-signed-url` ([#25](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/25) open)
+- [x] **T6** R2 Signed playback URL helper — #21 `feat/r2-t6-signed-url`
 - [ ] **T7** R2 Waveform player + transport — #22 `feat/r2-t7-player` *(in progress)*
 - [ ] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page`
 

@@ -109,7 +109,7 @@ Parent: GitHub #5. Close #5 when T5–T8 are Done. RK13 → Mitigated when T5+T7
 
 ### T5 — Worker waveform peaks (blocker)
 
-**Assignee:** Aziz (`feat/r2-t5-peaks`) — **In progress**  
+**Assignee:** Aziz (`feat/r2-t5-peaks`) — **Done** (merged #24)  
 **Blocked by:** nothing (`audio_files.waveform_peaks_path` already exists)  
 **Blocks:** T7 (live peaks), T8 (ready state)
 
@@ -125,7 +125,7 @@ Title: T5: R2 Worker waveform peaks
 
 ### T6 — Signed URL helper
 
-**Assignee:** unassigned (`feat/r2-t6-signed-url`)  
+**Assignee:** Aziz (`feat/r2-t6-signed-url`) — **In progress**  
 **Blocked by:** nothing  
 **Blocks:** T7
 
