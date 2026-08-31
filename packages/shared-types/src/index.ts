@@ -29,3 +29,8 @@ export type ExtractionJobStatus =
 export type ExtractionJob = Tables["extraction_jobs"]["Row"];
 export type ExtractionJobInsert = Tables["extraction_jobs"]["Insert"];
 export type ExtractionJobUpdate = Tables["extraction_jobs"]["Update"];
+
+export type {
+  WaveformPeaksDocument,
+} from "./waveform-peaks.js";
+export { waveformPeaksStoragePath } from "./waveform-peaks.js";
