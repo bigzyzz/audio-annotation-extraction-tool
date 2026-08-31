@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts src/lib/signed-url.test.ts"
+    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts src/lib/signed-url.test.ts src/lib/waveform-peaks-client.test.ts"
   },
   "dependencies": {
     "@audio-tool/shared-types": "workspace:*",
@@ -15,7 +15,8 @@
     "@supabase/supabase-js": "^2.112.0",
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "wavesurfer.js": "^7.12.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -141,7 +141,7 @@ Title: T6: R2 Signed playback URL helper
 
 ### T7 — Waveform player + transport
 
-**Assignee:** unassigned (`feat/r2-t7-player`)  
+**Assignee:** Aziz (`feat/r2-t7-player`) — **In progress**  
 **Blocked by:** T5 for live peaks (use a fixture JSON until T5 merges); T6 for signed URLs (can stub)  
 **Blocks:** T8
 
