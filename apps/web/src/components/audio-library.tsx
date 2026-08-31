@@ -19,7 +19,9 @@ export function AudioLibrary({ initialFiles }: AudioLibraryProps) {
     const supabase = createClient();
     const { data, error: queryError } = await supabase
       .from("audio_files")
-      .select("id, filename, format, duration_seconds, created_at")
+      .select(
+        "id, filename, format, duration_seconds, created_at, waveform_peaks_path",
+      )
       .order("created_at", { ascending: false });
 
     if (queryError) {
