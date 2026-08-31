@@ -84,9 +84,96 @@ Title: T4: R1 File list + ffprobe metadata
 
 ---
 
+## Epic: R2 waveform playback (US6)
+
+Parent: GitHub #5. Close #5 when T5–T8 are Done. RK13 → Mitigated when T5+T7 land (browser never decodes full PCM). Issues: T5 #20, T6 #21, T7 #22, T8 #23.
+
+**R2 contract (all four agree before code):**
+- Peaks: worker-generated compact JSON. Browser renders those peaks — never `decodeAudioData` of the full file (RK13)
+- Peak Storage path: `{owner_id}/{audio_file_id}.peaks.json` in bucket `audio` (derived file; never overwrite the original MP3/WAV)
+- Peak JSON shape (WaveSurfer v7 `load(audioUrl, peaks)`):
+  ```json
+  {
+    "version": 1,
+    "channels": 1,
+    "sample_rate": 44100,
+    "duration_seconds": 123.456,
+    "peaks": [0.12, -0.08]
+  }
+  ```
+  `peaks` is a mono array of normalised values in `-1..1`, roughly 50–100 values per second of audio (not a PCM dump)
+- Playback: signed URL (TTL ~1h) from the authenticated client, not `/object/public` (bucket is private)
+- WaveSurfer.js for waveform + transport
+- Controls in R2: play, pause, seek (click waveform), volume
+- Not in R2: annotations, region extract, search, Realtime, peak gen on Vercel (RK10)
+
+### T5 — Worker waveform peaks (blocker)
+
+**Assignee:** Aziz (`feat/r2-t5-peaks`) — **In progress**  
+**Blocked by:** nothing (`audio_files.waveform_peaks_path` already exists)  
+**Blocks:** T7 (live peaks), T8 (ready state)
+
+After probe (same temp download when possible), ffmpeg → downsample → peak JSON → Storage → set `waveform_peaks_path`. Also backfill rows where `duration_seconds` is set and `waveform_peaks_path` is null (files already probed by T4). Service-role write. Never mutate the original object.
+
+**Touch:** `apps/worker/src/` new peaks module (extend the T4 poll; do not change the ffprobe duration contract). Worker README peak-gen bullet.
+
+**Done when:** after upload, `waveform_peaks_path` fills within a few poll intervals; JSON is compact (not PCM); an already-probed file backfills.
+
+```
+Title: T5: R2 Worker waveform peaks
+```
+
+### T6 — Signed URL helper
+
+**Assignee:** unassigned (`feat/r2-t6-signed-url`)  
+**Blocked by:** nothing  
+**Blocks:** T7
+
+Authenticated helper: `createSignedUrl` for an `audio` bucket path (source file and `.peaks.json`). TTL ~3600s. Friendly error if path missing or session absent.
+
+**Touch:** `apps/web/src/lib/signed-url.ts` + tests. Nobody else edits this file.
+
+**Done when:** helper returns a URL that fetches a private object; unauthenticated / bad path fails with a clear error.
+
+```
+Title: T6: R2 Signed playback URL helper
+```
+
+### T7 — Waveform player + transport
+
+**Assignee:** unassigned (`feat/r2-t7-player`)  
+**Blocked by:** T5 for live peaks (use a fixture JSON until T5 merges); T6 for signed URLs (can stub)  
+**Blocks:** T8
+
+WaveSurfer.js player component. Render precomputed peaks (never full-file decode). Play / pause / seek / volume (US6). Visible loading and error if peaks or audio URL missing (US14).
+
+**Touch:** `apps/web/src/components/waveform-player.tsx` (+ tests if practical). Do not own `file-list.tsx` or `/files/[id]` (T8 composes).
+
+**Done when:** the four controls work against fixture audio + peaks; waveform comes from the peaks array, not `decodeAudioData` of the whole file (RK13).
+
+```
+Title: T7: R2 Waveform player + transport
+```
+
+### T8 — File page + library link
+
+**Assignee:** unassigned (`feat/r2-t8-file-page`)  
+**Blocked by:** T7 (player component); T6 for live signed URLs; T5 for live peaks
+
+Route `/files/[id]`: load the `audio_files` row, signed URLs for audio + peaks, compose `WaveformPlayer`. FileList filename links here. Poll `waveform_peaks_path` like duration: show “Preparing waveform…” until peaks exist; player page can still open and wait.
+
+**Touch:** `apps/web/src/app/files/[id]/page.tsx`, `apps/web/src/components/file-list.tsx`, `apps/web/src/components/audio-library.tsx` (select `waveform_peaks_path`). Do not rewrite the player internals.
+
+**Done when:** click a library row opens that file; play/pause/seek/volume work on a real uploaded track (US6).
+
+```
+Title: T8: R2 File page + library link
+```
+
+---
+
 ## Later (not split yet)
 
-- R2: waveform playback + controls (US6)
 - R3: real-time annotation UI (US7, US8)
 - R9: file search (US9)
 - R4/R8: extract UI + worker pipeline (US10–US12)
@@ -97,13 +184,4 @@ Title: T4: R1 File list + ffprobe metadata
 
 ## Paste as GitHub Issues
 
-`gh` is not authenticated here. After `gh auth login`:
-
-```bash
-gh issue create --title "T1: R1 Storage bucket + RLS (audio)" --body-file - <<'EOF'
-Blocked by: nothing. Blocks T3, T4.
-See BACKLOG.md T1.
-EOF
-```
-
-Or repo → Issues → New issue, paste each T1–T4 section. Add all four to the GitHub Project **Todo** column. Assign one person each. T1 merge first.
+T5–T8 opened as #20–#23 under parent #5. Add them to the GitHub Project **Todo** column. One person each. T5 merge first for live peaks.

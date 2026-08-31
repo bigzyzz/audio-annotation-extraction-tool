@@ -2,6 +2,7 @@ import "dotenv/config";
 import type { ExtractionJob } from "@audio-tool/shared-types";
 import { supabase } from "./lib/supabase.js";
 import { probePendingAudioFiles } from "./probe.js";
+import { generatePendingWaveformPeaks } from "./peaks.js";
 
 const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_INTERVAL_MS ?? 2000);
 
@@ -25,6 +26,7 @@ async function processJob(job: ExtractionJob): Promise<void> {
 
 async function pollOnce(): Promise<void> {
   await probePendingAudioFiles();
+  await generatePendingWaveformPeaks();
 
   const jobs = await fetchPendingJobs();
   for (const job of jobs) {

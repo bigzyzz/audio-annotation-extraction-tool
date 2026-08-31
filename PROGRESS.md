@@ -31,7 +31,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## In Progress
 
-- Nothing currently in flight.
+- T5 (R2): Worker waveform peaks — ffmpeg downsample → compact JSON in Storage; sets `waveform_peaks_path`. Backfill pass for pre-T5 probed rows. Branch `feat/r2-t5-peaks` (#20).
 
 ## Up Next
 
@@ -42,9 +42,15 @@ R1 split — one ticket per person, details in `BACKLOG.md`:
 - [x] **T3** R1 Upload UI — US4, US5; branch `feat/r1-t3-upload`
 - [x] **T4** R1 File list + ffprobe metadata — US4; branch `feat/r1-t4-list-ffprobe`
 
+R2 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #5):
+
+- [ ] **T5** R2 Worker waveform peaks — #20 `feat/r2-t5-peaks`
+- [ ] **T6** R2 Signed playback URL helper — #21 `feat/r2-t6-signed-url`
+- [ ] **T7** R2 Waveform player + transport — #22 `feat/r2-t7-player`
+- [ ] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page`
+
 Then:
 
-- [ ] R2: waveform playback (WaveSurfer.js) + basic controls
 - [ ] R3: real-time annotation UI + Supabase Realtime subscription
 - [ ] R9: file search
 - [ ] R4/R8: extraction UI + worker job pipeline (lossless WAV/MP3 cutting)
