@@ -1,9 +1,15 @@
+import Link from "next/link";
 import { formatDurationSeconds } from "@/lib/format-duration";
 import type { AudioFile } from "@audio-tool/shared-types";
 
 export type FileListItem = Pick<
   AudioFile,
-  "id" | "filename" | "format" | "duration_seconds" | "created_at"
+  | "id"
+  | "filename"
+  | "format"
+  | "duration_seconds"
+  | "created_at"
+  | "waveform_peaks_path"
 >;
 
 type FileListProps = {
@@ -56,7 +62,12 @@ export function FileList({ files, error }: FileListProps) {
                 className="border-b border-zinc-200 last:border-b-0 dark:border-zinc-800"
               >
                 <td className="px-3 py-2 text-black dark:text-zinc-50">
-                  {file.filename}
+                  <Link
+                    href={`/files/${file.id}`}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {file.filename}
+                  </Link>
                 </td>
                 <td className="px-3 py-2 uppercase text-zinc-600 dark:text-zinc-400">
                   {file.format}

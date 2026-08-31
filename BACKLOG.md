@@ -141,7 +141,7 @@ Title: T6: R2 Signed playback URL helper
 
 ### T7 — Waveform player + transport
 
-**Assignee:** Aziz (`feat/r2-t7-player`) — **In progress**  
+**Assignee:** Aziz (`feat/r2-t7-player`) — **Done** (merged #26)  
 **Blocked by:** T5 for live peaks (use a fixture JSON until T5 merges); T6 for signed URLs (can stub)  
 **Blocks:** T8
 
@@ -157,7 +157,7 @@ Title: T7: R2 Waveform player + transport
 
 ### T8 — File page + library link
 
-**Assignee:** unassigned (`feat/r2-t8-file-page`)  
+**Assignee:** Aziz (`feat/r2-t8-file-page`) — **In progress**  
 **Blocked by:** T7 (player component); T6 for live signed URLs; T5 for live peaks
 
 Route `/files/[id]`: load the `audio_files` row, signed URLs for audio + peaks, compose `WaveformPlayer`. FileList filename links here. Poll `waveform_peaks_path` like duration: show “Preparing waveform…” until peaks exist; player page can still open and wait.

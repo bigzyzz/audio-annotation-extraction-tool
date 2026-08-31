@@ -18,7 +18,7 @@ export default async function Home() {
   if (user) {
     const { data } = await supabase
       .from("audio_files")
-      .select("id, filename, format, duration_seconds, created_at")
+      .select("id, filename, format, duration_seconds, created_at, waveform_peaks_path")
       .order("created_at", { ascending: false });
     files = data ?? [];
   }

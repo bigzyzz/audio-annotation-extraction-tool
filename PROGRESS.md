@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T7 (R2): Waveform player + transport. `WaveformPlayer` (WaveSurfer.js) renders worker peaks with play/pause/seek/volume (US6). Closes #22 ([#26](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/26)).
 - T6 (R2): Signed playback URL helper. `createSignedPlaybackUrl` for private `audio` bucket objects. Closes #21 ([#25](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/25)).
 - T5 (R2): Worker waveform peaks. ffmpeg downsample → compact peaks JSON at `{owner_id}/{id}.peaks.json`; sets `waveform_peaks_path` after probe or backfill poll. Shared `WaveformPeaksDocument` type. Closes #20 ([#24](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/24)).
 - T4 (R1): File list + ffprobe. Signed-in home composes `UploadForm` + `FileList` (filename, format, duration or “Processing…”). Worker polls `audio_files` where `duration_seconds is null`, downloads Storage object, ffprobe, writes duration + sample_rate. List polls every 2s so duration fills without a reload. No waveform peaks (R2). Closes US4. Branch `feat/r1-t4-list-ffprobe`.
@@ -33,7 +34,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## In Progress
 
-- T7 (R2): Waveform player + transport — WaveSurfer.js, play/pause/seek/volume from precomputed peaks. Branch `feat/r2-t7-player` (#22).
+- T8 (R2): File page + library link — `/files/[id]` composes signed URLs + `WaveformPlayer`. Branch `feat/r2-t8-file-page` (#23).
 
 ## Up Next
 
@@ -48,8 +49,8 @@ R2 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #5):
 
 - [x] **T5** R2 Worker waveform peaks — #20 `feat/r2-t5-peaks`
 - [x] **T6** R2 Signed playback URL helper — #21 `feat/r2-t6-signed-url`
-- [ ] **T7** R2 Waveform player + transport — #22 `feat/r2-t7-player` *(in progress)*
-- [ ] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page`
+- [x] **T7** R2 Waveform player + transport — #22 `feat/r2-t7-player`
+- [ ] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page` *(in progress)*
 
 Then:
 
