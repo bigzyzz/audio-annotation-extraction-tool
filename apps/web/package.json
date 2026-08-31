@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts"
+    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts src/lib/signed-url.test.ts"
   },
   "dependencies": {
     "@audio-tool/shared-types": "workspace:*",
