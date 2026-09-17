@@ -10,12 +10,14 @@ Living task log. Update after every feature/session so the next prompt (human or
 - **Decisions Log**: any decision made mid-build that changes or refines something in `AGENTS.md` — then also update `AGENTS.md` itself if it's a lasting convention.
 - **Risks**: if the feature creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR. `project_plan.pdf` is the submitted snapshot; the markdown file is the living register.
 - **Stories**: `USER_STORIES.md` is the Done-when list (US1–US14 → R1–R9). Tick/confirm the matching US in the feature PR; don’t treat stories as implementation slices.
-- **Tickets**: `BACKLOG.md` is the implementation split (T1–T4 for R1). One GitHub Issue per ticket; one In Progress per person.
+- **Tickets**: `BACKLOG.md` is the implementation split (T1–T4 R1, T5–T8 R2, T9–T12 R3). One GitHub Issue per ticket; one In Progress per person.
 
 ---
 
 ## Done
 
+- T9 (R3): Annotation write helper (OCC). `createAnnotation` / `updateAnnotation` / `deleteAnnotation` in `apps/web/src/lib/annotations.ts`. Updates `.eq("version", clientVersion)`; 0 rows → conflict, no silent overwrite. Empty label+comment rejected. Closes #28.
+- T8 (R2): File page + library link. `/files/[id]` composes signed URLs + `WaveformPlayer`; library filename links here; polls until peaks exist. Closes #23.
 - T7 (R2): Waveform player + transport. `WaveformPlayer` (WaveSurfer.js) renders worker peaks with play/pause/seek/volume (US6). Closes #22 ([#26](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/26)).
 - T6 (R2): Signed playback URL helper. `createSignedPlaybackUrl` for private `audio` bucket objects. Closes #21 ([#25](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/25)).
 - T5 (R2): Worker waveform peaks. ffmpeg downsample → compact peaks JSON at `{owner_id}/{id}.peaks.json`; sets `waveform_peaks_path` after probe or backfill poll. Shared `WaveformPeaksDocument` type. Closes #20 ([#24](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/24)).
@@ -34,7 +36,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## In Progress
 
-- T8 (R2): File page + library link — `/files/[id]` composes signed URLs + `WaveformPlayer`. Branch `feat/r2-t8-file-page` (#23).
+- (none)
 
 ## Up Next
 
@@ -50,11 +52,17 @@ R2 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #5):
 - [x] **T5** R2 Worker waveform peaks — #20 `feat/r2-t5-peaks`
 - [x] **T6** R2 Signed playback URL helper — #21 `feat/r2-t6-signed-url`
 - [x] **T7** R2 Waveform player + transport — #22 `feat/r2-t7-player`
-- [ ] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page` *(in progress)*
+- [x] **T8** R2 File page + library link — #23 `feat/r2-t8-file-page`
+
+R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
+
+- [x] **T9** R3 Annotation write helper (OCC) — #28 `feat/r3-t9-annotation-writes`
+- [ ] **T10** R3 Annotation list + form — #29 `feat/r3-t10-annotation-panel`
+- [ ] **T11** R3 Timeline markers + click-to-stamp — #30 `feat/r3-t11-timeline-markers`
+- [ ] **T12** R3 Realtime + file page compose — #31 `feat/r3-t12-realtime-compose`
 
 Then:
 
-- [ ] R3: real-time annotation UI + Supabase Realtime subscription
 - [ ] R9: file search
 - [ ] R4/R8: extraction UI + worker job pipeline (lossless WAV/MP3 cutting)
 - [ ] R6: usability heuristics pass on finished UI
@@ -62,6 +70,7 @@ Then:
 
 ## Decisions Log
 
+- Annotation writes go through `apps/web/src/lib/annotations.ts` (`createAnnotation` / `updateAnnotation` / `deleteAnnotation`), not ad-hoc `from("annotations")` in components. Updates filter `.eq("version", clientVersion)` plus `author_id`; 0 rows then a follow-up select: different version → conflict, missing row → not found. Times round to 2 decimal seconds (RK2). At least one of label/comment after trim.
 - Duration and sample rate come from worker ffprobe (`apps/worker/src/probe.ts`), never the browser. Home `FileList` polls every 2s until those columns fill (Realtime stays R3).
 - Audio upload goes through the browser client (progress + disabled submit) then `recordUploadedAudio` inserts the row. R1 contract: Storage first, then `audio_files`. Insert failure deletes the Storage object. T3 lives at `/upload`; T4 composes `UploadForm` onto home `page.tsx`.
 - Audio upload validation (T2) lives in `apps/web/src/lib/audio-validate.ts`. T3 calls `validateAudioFile` before Storage / `audio_files` writes. Empty `File.type` is allowed only when extension and magic bytes already agree (some browsers omit MIME); a present MIME must be on the format allowlist.

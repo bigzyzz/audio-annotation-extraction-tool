@@ -172,9 +172,88 @@ Title: T8: R2 File page + library link
 
 ---
 
+## Epic: R3 real-time annotation (US7, US8)
+
+Parent: GitHub #6. Close #6 when T9–T12 are Done. RK1 → Monitored when T12 lands (Mitigated stays R7). RK2 → Monitored when T11 lands. Issues: T9 #28, T10 #29, T11 #30, T12 #31.
+
+**R3 contract (all four agree before code):**
+- Table already exists: `annotations` (`audio_file_id`, `author_id`, `start_seconds`, `end_seconds`, `label`, `comment`, `version`). No new columns. RLS already: any authenticated user reads; author insert/update/delete
+- Writes go through the T9 helper — not ad-hoc `supabase.from("annotations")` in every component
+- Create: `author_id = auth.uid()`; at least one of `label` / `comment` (trim empty → null)
+- Update: `.eq("version", clientVersion)`; 0 rows = stale write → conflict in the UI, never silent overwrite (trigger `bump_annotation_version` already exists)
+- Time from WaveSurfer audio clock (click / `getCurrentTime()`), not `Date.now()` or a second HTML5 `<audio>` (RK2). Round to 2 decimal seconds. `end >= start` (DB check)
+- Display author via `profiles.username`
+- Realtime: `postgres_changes` on `public.annotations` filtered by `audio_file_id`. Apply INSERT/UPDATE/DELETE. Throttle UI merge. **Not** ephemeral cursor / playback broadcast (that is R7)
+- Markers: WaveSurfer Regions (or equivalent) from `start_seconds` / `end_seconds`; point note = marker at start
+- Not in R3: extract, search, 5-user latency bench (R7), Nielsen full pass (R6)
+
+### T9 — Annotation write helper (OCC)
+
+**Assignee:** Aziz (`feat/r3-t9-annotation-writes`) — **Done**  
+**Blocked by:** nothing (table + trigger already exist)  
+**Blocks:** T10, T12
+
+Insert / update / delete helper + tests. Update must send `.eq("version", clientVersion)` and return a clear conflict when 0 rows. Reject empty label+comment. Friendly errors.
+
+**Touch:** `apps/web/src/lib/annotations.ts` + tests. Nobody else edits this file.
+
+**Done when:** insert persists a row; stale-version update reports conflict (no overwrite); author delete works; missing label+comment is rejected.
+
+```
+Title: T9: R3 Annotation write helper (OCC)
+```
+
+### T10 — Annotation list + form
+
+**Assignee:** (`feat/r3-t10-annotation-panel`)  
+**Blocked by:** T9 (stub the same return shape until T9 merges)  
+**Blocks:** T12
+
+Signed-in list of notes for one file + create form: start (required), end (optional), label and/or comment. `currentTime` is a prop from the parent (T12 wires player click). Submit disabled while pending (US14). Show helper conflict, don’t retry-overwrite.
+
+**Touch:** `apps/web/src/components/annotation-panel.tsx`. Do not own `waveform-player.tsx` or `/files/[id]` (T12 composes).
+
+**Done when:** signed-in user creates a note; it is in the list after reload (US7). Empty label+comment shows a clear error. Junk timestamp (end before start) is refused.
+
+```
+Title: T10: R3 Annotation list + form
+```
+
+### T11 — Timeline markers + click-to-stamp
+
+**Assignee:** (`feat/r3-t11-timeline-markers`)  
+**Blocked by:** nothing (fixture annotations)  
+**Blocks:** T12
+
+Extend the player: click/seek reports audio time; draw markers/regions from an `annotations` prop. Keep play / pause / seek / volume. Do not decode full PCM (RK13 still holds).
+
+**Touch:** `apps/web/src/components/waveform-player.tsx` (+ tests if practical). Do not own the list or `/files/[id]`.
+
+**Done when:** click waveform returns a time; fixture notes appear on the timeline at start/end; transport still works (RK2).
+
+```
+Title: T11: R3 Timeline markers + click-to-stamp
+```
+
+### T12 — Realtime + file page compose
+
+**Assignee:** (`feat/r3-t12-realtime-compose`)  
+**Blocked by:** T9 (writes); T10 (panel); T11 (player time + markers)
+
+Route `/files/[id]`: load notes, pass `currentTime` from player → form, pass notes → markers, subscribe to Realtime. Migration: `replica identity full` + add `annotations` to `supabase_realtime`. Merge INSERT/UPDATE/DELETE into the list without a full reload.
+
+**Touch:** `apps/web/src/components/file-player-panel.tsx`, `apps/web/src/app/files/[id]/page.tsx`, `supabase/migrations/`. Do not rewrite player internals or the panel form.
+
+**Done when:** user B sees user A’s create/edit/delete on the same file without a full page refresh (US8). Create still persists on reload (US7).
+
+```
+Title: T12: R3 Realtime + file page compose
+```
+
+---
+
 ## Later (not split yet)
 
-- R3: real-time annotation UI (US7, US8)
 - R9: file search (US9)
 - R4/R8: extract UI + worker pipeline (US10–US12)
 - R6: Nielsen pass (US14, after UI exists)
@@ -184,4 +263,4 @@ Title: T8: R2 File page + library link
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. Add them to the GitHub Project **Todo** column. One person each. T5 merge first for live peaks.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. Add them to the GitHub Project **Todo** column. One person each. T9 merge first for the write helper.
