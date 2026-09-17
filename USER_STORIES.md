@@ -40,11 +40,11 @@ As a hobbyist, I want play, pause, seek, and volume on the track, so that I cont
 
 **US7 — Timestamped feedback**
 As a hobbyist, I want to leave a label/comment at a timestamp (or range), so that feedback has context on the timeline.
-**Done when:** signed-in user can create an annotation with start time (and optional end) plus label or comment; it persists on reload.
+**Done when:** signed-in user can create an annotation with start time (and optional end) plus label or comment; it persists on reload. — met by T9–T12.
 
 **US8 — See others’ notes**
 As a hobbyist, I want to see other people’s annotations on the same file, so that I can use their feedback.
-**Done when:** user B sees user A’s annotations on the shared file without a full page refresh (Realtime).
+**Done when:** user B sees user A’s annotations on the shared file without a full page refresh (Realtime). — met by T12.
 
 ## R9 — Search
 

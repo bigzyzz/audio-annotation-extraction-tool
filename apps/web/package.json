@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts src/lib/signed-url.test.ts src/lib/waveform-peaks-client.test.ts src/lib/annotations.test.ts src/components/annotation-panel.test.ts src/lib/waveform-markers.test.ts"
+    "test": "tsx --test src/lib/audio-validate.test.ts src/lib/format-duration.test.ts src/lib/signed-url.test.ts src/lib/waveform-peaks-client.test.ts src/lib/annotations.test.ts src/components/annotation-panel.test.ts src/lib/waveform-markers.test.ts src/lib/annotation-realtime.test.ts"
   },
   "dependencies": {
     "@audio-tool/shared-types": "workspace:*",
