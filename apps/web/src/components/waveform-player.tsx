@@ -11,11 +11,17 @@ import {
   type WaveformAnnotationMarker,
 } from "@/lib/waveform-markers";
 
+export type WaveformSeekRequest = {
+  seconds: number;
+  token: number;
+};
+
 export type WaveformPlayerProps = {
   audioUrl: string | null;
   peaks: WaveformPeaksDocument | null;
   title?: string;
   annotations?: WaveformAnnotationMarker[];
+  seekRequest?: WaveformSeekRequest | null;
   onTimeSelect?: (seconds: number) => void;
   onTimeUpdate?: (seconds: number) => void;
 };
@@ -25,6 +31,7 @@ export function WaveformPlayer({
   peaks,
   title,
   annotations = [],
+  seekRequest = null,
   onTimeSelect,
   onTimeUpdate,
 }: WaveformPlayerProps) {
@@ -140,6 +147,11 @@ export function WaveformPlayer({
       regions.addRegion(annotationToRegionParams(note));
     }
   }, [annotations, ready]);
+
+  useEffect(() => {
+    if (!ready || seekRequest == null) return;
+    waveSurferRef.current?.setTime(seekRequest.seconds);
+  }, [ready, seekRequest]);
 
   if (!audioUrl || !peaks) {
     return (

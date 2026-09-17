@@ -237,7 +237,7 @@ Title: T11: R3 Timeline markers + click-to-stamp
 
 ### T12 — Realtime + file page compose
 
-**Assignee:** (`feat/r3-t12-realtime-compose`)  
+**Assignee:** Aziz (`feat/r3-t12-realtime-compose`) — **Done**  
 **Blocked by:** T9 (writes); T10 (panel); T11 (player time + markers)
 
 Route `/files/[id]`: load notes, pass `currentTime` from player → form, pass notes → markers, subscribe to Realtime. Migration: `replica identity full` + add `annotations` to `supabase_realtime`. Merge INSERT/UPDATE/DELETE into the list without a full reload.

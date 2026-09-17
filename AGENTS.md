@@ -87,4 +87,4 @@ See `project_plan.pdf` section 5.4 for the full architecture diagram.
 
 ## Current status
 
-Monorepo + Supabase schema/RLS + R5 auth UI shipped. R1 T1–T4 live. R2 T5–T8 live (peaks, signed URLs, player, file page). Next: R3 annotation in `BACKLOG.md`. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.
+Monorepo + Supabase schema/RLS + R5 auth UI shipped. R1 T1–T4 live. R2 T5–T8 live. R3 T9–T12 live (OCC writes, list/form, timeline markers, Realtime on `/files/[id]`). Next: R9 search in `BACKLOG.md`. Live task log: `PROGRESS.md`. Live risk register: `RISK_REGISTER.md`. User stories (Done when): `USER_STORIES.md`.
