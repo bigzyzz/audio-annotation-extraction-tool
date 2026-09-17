@@ -221,7 +221,7 @@ Title: T10: R3 Annotation list + form
 
 ### T11 — Timeline markers + click-to-stamp
 
-**Assignee:** (`feat/r3-t11-timeline-markers`)  
+**Assignee:** Aziz (`feat/r3-t11-timeline-markers`) — **Done**  
 **Blocked by:** nothing (fixture annotations)  
 **Blocks:** T12
 
