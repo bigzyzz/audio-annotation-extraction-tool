@@ -3,21 +3,45 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WaveformPeaksDocument } from "@audio-tool/shared-types";
 import WaveSurfer from "wavesurfer.js";
+import RegionsPlugin from "wavesurfer.js/plugins/regions";
 import { peaksDocumentToWaveSurferLoad } from "@/lib/waveform-peaks-client";
+import {
+  annotationToRegionParams,
+  clickRatioToAudioTime,
+  type WaveformAnnotationMarker,
+} from "@/lib/waveform-markers";
 
 export type WaveformPlayerProps = {
   audioUrl: string | null;
   peaks: WaveformPeaksDocument | null;
   title?: string;
+  annotations?: WaveformAnnotationMarker[];
+  onTimeSelect?: (seconds: number) => void;
+  onTimeUpdate?: (seconds: number) => void;
 };
 
-export function WaveformPlayer({ audioUrl, peaks, title }: WaveformPlayerProps) {
+export function WaveformPlayer({
+  audioUrl,
+  peaks,
+  title,
+  annotations = [],
+  onTimeSelect,
+  onTimeUpdate,
+}: WaveformPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
+  const regionsRef = useRef<RegionsPlugin | null>(null);
+  const onTimeSelectRef = useRef(onTimeSelect);
+  const onTimeUpdateRef = useRef(onTimeUpdate);
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onTimeSelectRef.current = onTimeSelect;
+    onTimeUpdateRef.current = onTimeUpdate;
+  }, [onTimeSelect, onTimeUpdate]);
 
   const peaksLoad = useMemo(() => {
     if (!peaks) return null;
@@ -50,9 +74,12 @@ export function WaveformPlayer({ audioUrl, peaks, title }: WaveformPlayerProps) 
       barGap: 1,
       normalize: true,
       interact: true,
+      dragToSeek: true,
     });
 
+    const regions = waveSurfer.registerPlugin(RegionsPlugin.create());
     waveSurferRef.current = waveSurfer;
+    regionsRef.current = regions;
 
     const unsubscribers = [
       waveSurfer.on("ready", () => {
@@ -61,10 +88,26 @@ export function WaveformPlayer({ audioUrl, peaks, title }: WaveformPlayerProps) 
       waveSurfer.on("play", () => setPlaying(true)),
       waveSurfer.on("pause", () => setPlaying(false)),
       waveSurfer.on("finish", () => setPlaying(false)),
+      waveSurfer.on("interaction", (newTime) => {
+        onTimeSelectRef.current?.(newTime);
+      }),
+      waveSurfer.on("click", (relativeX) => {
+        const duration = waveSurfer.getDuration();
+        if (!Number.isFinite(duration) || duration <= 0) return;
+        onTimeSelectRef.current?.(clickRatioToAudioTime(relativeX, duration));
+      }),
+      waveSurfer.on("timeupdate", (currentTime) => {
+        onTimeUpdateRef.current?.(currentTime);
+      }),
       waveSurfer.on("error", () => {
         if (!cancelled) {
           setError("Couldn't load audio for playback. Try again.");
         }
+      }),
+      regions.on("region-clicked", (region, event) => {
+        event.stopPropagation();
+        waveSurfer.setTime(region.start);
+        onTimeSelectRef.current?.(region.start);
       }),
     ];
 
@@ -81,12 +124,22 @@ export function WaveformPlayer({ audioUrl, peaks, title }: WaveformPlayerProps) 
       unsubscribers.forEach((unsubscribe) => unsubscribe());
       waveSurfer.destroy();
       waveSurferRef.current = null;
+      regionsRef.current = null;
     };
   }, [audioUrl, peaksLoad]);
 
   useEffect(() => {
     waveSurferRef.current?.setVolume(volume);
   }, [volume]);
+
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !ready) return;
+    regions.clearRegions();
+    for (const note of annotations) {
+      regions.addRegion(annotationToRegionParams(note));
+    }
+  }, [annotations, ready]);
 
   if (!audioUrl || !peaks) {
     return (
@@ -163,8 +216,8 @@ export function WaveformPlayer({ audioUrl, peaks, title }: WaveformPlayerProps) 
         ) : null}
       </div>
       <p className="sr-only">
-        Click or drag on the waveform to seek. Volume slider adjusts playback
-        level.
+        Click or drag on the waveform to seek and stamp a note time. Volume
+        slider adjusts playback level.
       </p>
     </div>
   );

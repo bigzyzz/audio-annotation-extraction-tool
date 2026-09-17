@@ -16,7 +16,8 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
-- T10 (R3): Annotation list + form. `AnnotationPanel` loads notes, creates via T9 helper, edit/delete own rows (OCC conflict shown, two-step delete). Closes #29.
+- T11 (R3): Timeline markers + click-to-stamp. WaveSurfer Regions from annotation start/end; click/seek reports audio-clock time (`onTimeSelect`). RK2 → Monitored. Closes #30.
+- T10 (R3): Annotation list + form. `AnnotationPanel` loads notes, creates via T9 helper, edit/delete own rows (OCC conflict shown, two-step delete). Closes #29 ([#33](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/33)).
 - T9 (R3): Annotation write helper (OCC). `createAnnotation` / `updateAnnotation` / `deleteAnnotation` in `apps/web/src/lib/annotations.ts`. Updates `.eq("version", clientVersion)`; 0 rows → conflict, no silent overwrite. Empty label+comment rejected. Closes #28 ([#32](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/32)).
 - T8 (R2): File page + library link. `/files/[id]` composes signed URLs + `WaveformPlayer`; library filename links here; polls until peaks exist. Closes #23.
 - T7 (R2): Waveform player + transport. `WaveformPlayer` (WaveSurfer.js) renders worker peaks with play/pause/seek/volume (US6). Closes #22 ([#26](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/26)).
@@ -59,7 +60,7 @@ R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
 
 - [x] **T9** R3 Annotation write helper (OCC) — #28 `feat/r3-t9-annotation-writes`
 - [x] **T10** R3 Annotation list + form — #29 `feat/r3-t10-annotation-panel`
-- [ ] **T11** R3 Timeline markers + click-to-stamp — #30 `feat/r3-t11-timeline-markers`
+- [x] **T11** R3 Timeline markers + click-to-stamp — #30 `feat/r3-t11-timeline-markers`
 - [ ] **T12** R3 Realtime + file page compose — #31 `feat/r3-t12-realtime-compose`
 
 Then:
@@ -71,6 +72,7 @@ Then:
 
 ## Decisions Log
 
+- Marker times come from WaveSurfer audio clock (`interaction` / click ratio × duration), rounded to 2 decimals via `roundAnnotationTime`. Regions plugin draws start/end; point notes use start===end. Avoid a second HTML5 `<audio>` clock (RK2).
 - Annotation writes go through `apps/web/src/lib/annotations.ts` (`createAnnotation` / `updateAnnotation` / `deleteAnnotation`), not ad-hoc `from("annotations")` in components. Updates filter `.eq("version", clientVersion)` plus `author_id`; 0 rows then a follow-up select: different version → conflict, missing row → not found. Times round to 2 decimal seconds (RK2). At least one of label/comment after trim.
 - Duration and sample rate come from worker ffprobe (`apps/worker/src/probe.ts`), never the browser. Home `FileList` polls every 2s until those columns fill (Realtime stays R3).
 - Audio upload goes through the browser client (progress + disabled submit) then `recordUploadedAudio` inserts the row. R1 contract: Storage first, then `audio_files`. Insert failure deletes the Storage object. T3 lives at `/upload`; T4 composes `UploadForm` onto home `page.tsx`.
