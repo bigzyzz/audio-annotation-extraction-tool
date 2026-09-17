@@ -205,7 +205,7 @@ Title: T9: R3 Annotation write helper (OCC)
 
 ### T10 — Annotation list + form
 
-**Assignee:** (`feat/r3-t10-annotation-panel`)  
+**Assignee:** Aziz (`feat/r3-t10-annotation-panel`) — **Done**  
 **Blocked by:** T9 (stub the same return shape until T9 merges)  
 **Blocks:** T12
 
