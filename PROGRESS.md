@@ -16,7 +16,8 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
-- T9 (R3): Annotation write helper (OCC). `createAnnotation` / `updateAnnotation` / `deleteAnnotation` in `apps/web/src/lib/annotations.ts`. Updates `.eq("version", clientVersion)`; 0 rows → conflict, no silent overwrite. Empty label+comment rejected. Closes #28.
+- T10 (R3): Annotation list + form. `AnnotationPanel` loads notes, creates via T9 helper, edit/delete own rows (OCC conflict shown, two-step delete). Closes #29.
+- T9 (R3): Annotation write helper (OCC). `createAnnotation` / `updateAnnotation` / `deleteAnnotation` in `apps/web/src/lib/annotations.ts`. Updates `.eq("version", clientVersion)`; 0 rows → conflict, no silent overwrite. Empty label+comment rejected. Closes #28 ([#32](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/32)).
 - T8 (R2): File page + library link. `/files/[id]` composes signed URLs + `WaveformPlayer`; library filename links here; polls until peaks exist. Closes #23.
 - T7 (R2): Waveform player + transport. `WaveformPlayer` (WaveSurfer.js) renders worker peaks with play/pause/seek/volume (US6). Closes #22 ([#26](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/26)).
 - T6 (R2): Signed playback URL helper. `createSignedPlaybackUrl` for private `audio` bucket objects. Closes #21 ([#25](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/25)).
@@ -57,7 +58,7 @@ R2 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #5):
 R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
 
 - [x] **T9** R3 Annotation write helper (OCC) — #28 `feat/r3-t9-annotation-writes`
-- [ ] **T10** R3 Annotation list + form — #29 `feat/r3-t10-annotation-panel`
+- [x] **T10** R3 Annotation list + form — #29 `feat/r3-t10-annotation-panel`
 - [ ] **T11** R3 Timeline markers + click-to-stamp — #30 `feat/r3-t11-timeline-markers`
 - [ ] **T12** R3 Realtime + file page compose — #31 `feat/r3-t12-realtime-compose`
 
