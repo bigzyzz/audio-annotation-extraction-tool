@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T13 (R9): Search query helper. Pure TS in `apps/web/src/lib/search-query.ts`: trim, lowercase, escape ILIKE wildcards (`\`, `%`, `_`), build `%pattern%`, in-memory matcher; blank/whitespace returns `{ empty: true }`. Closes #36.
 - T12 (R3): Realtime + file page compose. `/files/[id]` wires peaks player + `AnnotationPanel`; `postgres_changes` on `annotations` merges INSERT/UPDATE/DELETE without a reload (US7, US8). Migration adds table to `supabase_realtime`. RK1 → Monitored. Closes #31 and #6.
 - T11 (R3): Timeline markers + click-to-stamp. WaveSurfer Regions from annotation start/end; click/seek reports audio-clock time (`onTimeSelect`). RK2 → Monitored. Closes #30 ([#34](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/34)).
 - T10 (R3): Annotation list + form. `AnnotationPanel` loads notes, creates via T9 helper, edit/delete own rows (OCC conflict shown, two-step delete). Closes #29 ([#33](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/33)).
@@ -66,7 +67,7 @@ R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
 
 R9 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #10):
 
-- [ ] **T13** R9 Search query helper — #36 `feat/r9-t13-search-query`
+- [x] **T13** R9 Search query helper — #36 `feat/r9-t13-search-query`
 - [ ] **T14** R9 Search fetch helper — #37 `feat/r9-t14-search-fetch`
 - [ ] **T15** R9 Search field UI — #38 `feat/r9-t15-search-field`
 - [ ] **T16** R9 Library compose + empty match — #39 `feat/r9-t16-library-search`
@@ -79,6 +80,7 @@ Then:
 
 ## Decisions Log
 
+- Search query helper (`apps/web/src/lib/search-query.ts`) escapes `\` before `%` and `_` to prevent double-escaping backslashes in ILIKE patterns. Empty/whitespace queries return `{ empty: true }` so upstream components preserve the full library rather than treating empty input as zero results.
 - File-page notes subscribe via Supabase `postgres_changes` on `public.annotations` filtered by `audio_file_id`. Client merge is in `apps/web/src/lib/annotation-realtime.ts`. Username is filled by a follow-up select (Realtime payloads have no join). Ephemeral cursor/playback broadcast stays out (R7). Replica identity FULL + publication membership live in `supabase/migrations/20260917100000_enable_annotations_realtime.sql`.
 - Marker times come from WaveSurfer audio clock (`interaction` / click ratio × duration), rounded to 2 decimals via `roundAnnotationTime`. Regions plugin draws start/end; point notes use start===end. Avoid a second HTML5 `<audio>` clock (RK2).
 - Annotation writes go through `apps/web/src/lib/annotations.ts` (`createAnnotation` / `updateAnnotation` / `deleteAnnotation`), not ad-hoc `from("annotations")` in components. Updates filter `.eq("version", clientVersion)` plus `author_id`; 0 rows then a follow-up select: different version → conflict, missing row → not found. Times round to 2 decimal seconds (RK2). At least one of label/comment after trim.

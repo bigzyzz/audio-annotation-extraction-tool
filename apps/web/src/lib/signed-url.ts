@@ -15,9 +15,13 @@ const AUDIO_STORAGE_PATH_RE = new RegExp(
   "i",
 );
 
+export type StoragePathValidationResult =
+  | { ok: true; path: string }
+  | { ok: false; error: string };
+
 export function validateAudioStoragePath(
   storagePath: string,
-): SignedPlaybackUrlResult | { ok: true; path: string } {
+): StoragePathValidationResult {
   const path = storagePath.trim();
   if (!path) {
     return { ok: false, error: "Storage path is missing." };

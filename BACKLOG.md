@@ -267,7 +267,7 @@ Parent: GitHub #10. Close #10 when T13–T16 are Done. Issues: T13 #36, T14 #37,
 
 ### T13 — Search query helper
 
-**Assignee:** (`feat/r9-t13-search-query`)  
+**Assignee:** (`feat/r9-t13-search-query`) — **Done** (helper + tests)  
 **Blocked by:** nothing  
 **Blocks:** T14, T16
 
