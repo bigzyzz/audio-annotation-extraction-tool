@@ -252,9 +252,86 @@ Title: T12: R3 Realtime + file page compose
 
 ---
 
+## Epic: R9 file search (US9)
+
+Parent: GitHub #10. Close #10 when T13–T16 are Done. Issues: T13 #36, T14 #37, T15 #38, T16 #39.
+
+**R9 contract (all four agree before code):**
+- Match: case-insensitive **substring** of `audio_files.filename` (US9). Not English FTS ranking. Existing `audio_files_filename_idx` is `to_tsvector('english', filename)` — ignore it for this epic
+- Empty query: show the full library (same order as today: `created_at` desc). Do **not** treat blank as “no results”
+- Empty match: obvious copy (“No tracks match …”). Distinct from “No tracks yet”
+- Login required: search lives on signed-in home only (anon already cannot see the library)
+- Escape LIKE / ILIKE metacharacters (`%`, `_`, `\`) so a query of `%` is literal
+- Debounce the input (~250ms). Results still link to `/files/[id]`
+- Not in R9: extract, annotate, filter by format/owner, search comments, search on `/files/[id]`
+
+### T13 — Search query helper
+
+**Assignee:** (`feat/r9-t13-search-query`)  
+**Blocked by:** nothing  
+**Blocks:** T14, T16
+
+Pure TS: trim, lowercase for compare, escape ILIKE wildcards, build the `%pattern%`. Empty / whitespace → `{ empty: true }` (caller shows all files). Tests: substring, case, `%`/`_` literal, blank.
+
+**Touch:** `apps/web/src/lib/search-query.ts` + tests. Nobody else edits this file.
+
+**Done when:** tests pass for match rules above; no Supabase in this ticket.
+
+```
+Title: T13: R9 Search query helper
+```
+
+### T14 — Search fetch helper
+
+**Assignee:** (`feat/r9-t14-search-fetch`)  
+**Blocked by:** T13 (stub the same return shape until T13 merges)  
+**Blocks:** T16
+
+Authenticated helper: `searchAudioFiles(supabase, query)`. Session absent → friendly error. Empty query → all rows (`created_at` desc). Non-empty → `.ilike("filename", pattern)` from T13. Optional migration: `pg_trgm` GIN on `filename` (ILIKE, not the english tsvector). Select the same columns `FileList` already uses.
+
+**Touch:** `apps/web/src/lib/search-audio.ts` + tests. Migration only if adding trigram. Nobody else edits the helper.
+
+**Done when:** mock tests cover all / substring / no session; junk wildcard query does not throw.
+
+```
+Title: T14: R9 Search fetch helper
+```
+
+### T15 — Search field UI
+
+**Assignee:** (`feat/r9-t15-search-field`)  
+**Blocked by:** nothing (local state + callback)  
+**Blocks:** T16
+
+Signed-in search input: placeholder, debounce ~250ms, clear control, pending/disabled while parent is fetching (US14). Emits the raw query string. Do **not** fetch files here.
+
+**Touch:** `apps/web/src/components/search-field.tsx` (+ tests if practical). Do not own `file-list.tsx` or `audio-library.tsx` (T16 composes).
+
+**Done when:** typing emits a debounced query; clear resets to empty; empty field is valid (not an error).
+
+```
+Title: T15: R9 Search field UI
+```
+
+### T16 — Library compose + empty match
+
+**Assignee:** (`feat/r9-t16-library-search`)  
+**Blocked by:** T13 (pattern); T14 (fetch); T15 (field)
+
+Home `AudioLibrary`: render `SearchField`, call T14, pass rows to `FileList`. Empty query keeps full list. Empty match uses distinct copy from “No tracks yet”. Optional `?q=` on `/` so a search is shareable. Login still required (existing home gate).
+
+**Touch:** `apps/web/src/components/audio-library.tsx`, `apps/web/src/components/file-list.tsx` (empty-match copy), maybe `apps/web/src/app/page.tsx` for `?q=`. Do not rewrite upload or the search helper internals.
+
+**Done when:** signed-in user types a name and matching rows remain; a miss shows the empty-match message; `/login` users never see search (US9).
+
+```
+Title: T16: R9 Library compose + empty match
+```
+
+---
+
 ## Later (not split yet)
 
-- R9: file search (US9)
 - R4/R8: extract UI + worker pipeline (US10–US12)
 - R6: Nielsen pass (US14, after UI exists)
 - R7: 5-user / <2s check (US13, after R3)
@@ -263,4 +340,4 @@ Title: T12: R3 Realtime + file page compose
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. Add them to the GitHub Project **Todo** column. One person each. T9 merge first for the write helper.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. Add them to the GitHub Project **Todo** column. One person each. T13 merge first for the query helper.

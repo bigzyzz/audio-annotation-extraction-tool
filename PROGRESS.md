@@ -10,7 +10,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 - **Decisions Log**: any decision made mid-build that changes or refines something in `AGENTS.md` — then also update `AGENTS.md` itself if it's a lasting convention.
 - **Risks**: if the feature creates, changes, or closes a risk, update `RISK_REGISTER.md` in the same PR. `project_plan.pdf` is the submitted snapshot; the markdown file is the living register.
 - **Stories**: `USER_STORIES.md` is the Done-when list (US1–US14 → R1–R9). Tick/confirm the matching US in the feature PR; don’t treat stories as implementation slices.
-- **Tickets**: `BACKLOG.md` is the implementation split (T1–T4 R1, T5–T8 R2, T9–T12 R3). One GitHub Issue per ticket; one In Progress per person.
+- **Tickets**: `BACKLOG.md` is the implementation split (T1–T4 R1, T5–T8 R2, T9–T12 R3, T13–T16 R9). One GitHub Issue per ticket; one In Progress per person.
 
 ---
 
@@ -64,9 +64,15 @@ R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
 - [x] **T11** R3 Timeline markers + click-to-stamp — #30 `feat/r3-t11-timeline-markers`
 - [x] **T12** R3 Realtime + file page compose — #31 `feat/r3-t12-realtime-compose`
 
+R9 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #10):
+
+- [ ] **T13** R9 Search query helper — #36 `feat/r9-t13-search-query`
+- [ ] **T14** R9 Search fetch helper — #37 `feat/r9-t14-search-fetch`
+- [ ] **T15** R9 Search field UI — #38 `feat/r9-t15-search-field`
+- [ ] **T16** R9 Library compose + empty match — #39 `feat/r9-t16-library-search`
+
 Then:
 
-- [ ] R9: file search
 - [ ] R4/R8: extraction UI + worker job pipeline (lossless WAV/MP3 cutting)
 - [ ] R6: usability heuristics pass on finished UI
 - [ ] R7: latency validation under 5 concurrent users
