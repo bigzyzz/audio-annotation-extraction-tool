@@ -299,7 +299,7 @@ Title: T14: R9 Search fetch helper
 
 ### T15 — Search field UI
 
-**Assignee:** (`feat/r9-t15-search-field`)  
+**Assignee:** (`feat/r9-t15-search-field`) — **Done** (component + tests)  
 **Blocked by:** nothing (local state + callback)  
 **Blocks:** T16
 
