@@ -15,14 +15,23 @@ export type FileListItem = Pick<
 type FileListProps = {
   files: FileListItem[];
   error?: string | null;
+  searchQuery?: string | null;
 };
+
+export function emptyListMessage(searchQuery?: string | null): string {
+  const trimmed = searchQuery?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return `No tracks match "${trimmed}". Try another search or clear the search field.`;
+  }
+  return "No tracks yet. Upload an MP3 or WAV to get started.";
+}
 
 function durationLabel(seconds: number | null): string {
   if (seconds == null) return "Processing…";
   return formatDurationSeconds(seconds);
 }
 
-export function FileList({ files, error }: FileListProps) {
+export function FileList({ files, error, searchQuery }: FileListProps) {
   if (files.length === 0) {
     return (
       <div className="flex flex-col gap-2">
@@ -32,7 +41,7 @@ export function FileList({ files, error }: FileListProps) {
           </p>
         )}
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          No tracks yet. Upload an MP3 or WAV to get started.
+          {emptyListMessage(searchQuery)}
         </p>
       </div>
     );

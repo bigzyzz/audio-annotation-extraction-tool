@@ -1,13 +1,22 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { AudioLibrary } from "@/components/audio-library";
+import { searchAudioFiles } from "@/lib/search-audio";
 import type { FileListItem } from "@/components/file-list";
 
-export default async function Home() {
+type HomeProps = {
+  searchParams?: Promise<{ q?: string }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const initialQuery =
+    typeof resolvedParams?.q === "string" ? resolvedParams.q : "";
 
   const username =
     typeof user?.user_metadata?.username === "string"
@@ -16,11 +25,8 @@ export default async function Home() {
 
   let files: FileListItem[] = [];
   if (user) {
-    const { data } = await supabase
-      .from("audio_files")
-      .select("id, filename, format, duration_seconds, created_at, waveform_peaks_path")
-      .order("created_at", { ascending: false });
-    files = data ?? [];
+    const result = await searchAudioFiles(supabase, initialQuery);
+    files = result.ok ? result.files : [];
   }
 
   return (
@@ -39,7 +45,7 @@ export default async function Home() {
               Upload a track or open one from the library.
             </p>
           </div>
-          <AudioLibrary initialFiles={files} />
+          <AudioLibrary initialFiles={files} initialQuery={initialQuery} />
         </>
       ) : (
         <>

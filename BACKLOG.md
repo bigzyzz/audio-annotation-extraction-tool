@@ -315,7 +315,7 @@ Title: T15: R9 Search field UI
 
 ### T16 — Library compose + empty match
 
-**Assignee:** (`feat/r9-t16-library-search`)  
+**Assignee:** (`feat/r9-t16-library-search`) — **Done** (composed + empty match copy)  
 **Blocked by:** T13 (pattern); T14 (fetch); T15 (field)
 
 Home `AudioLibrary`: render `SearchField`, call T14, pass rows to `FileList`. Empty query keeps full list. Empty match uses distinct copy from “No tracks yet”. Optional `?q=` on `/` so a search is shareable. Login still required (existing home gate).
