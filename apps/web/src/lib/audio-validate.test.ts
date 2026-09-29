@@ -13,7 +13,7 @@ function fileFrom(
   type: string,
   bytes: Uint8Array,
 ): File {
-  return new File([bytes], name, { type });
+  return new File([bytes as unknown as BlobPart], name, { type });
 }
 
 function loadFixture(name: string): Uint8Array {
