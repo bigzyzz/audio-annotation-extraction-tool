@@ -283,7 +283,7 @@ Title: T13: R9 Search query helper
 
 ### T14 — Search fetch helper
 
-**Assignee:** (`feat/r9-t14-search-fetch`)  
+**Assignee:** (`feat/r9-t14-search-fetch`) — **Done** (fetch helper + tests)  
 **Blocked by:** T13 (stub the same return shape until T13 merges)  
 **Blocks:** T16
 
