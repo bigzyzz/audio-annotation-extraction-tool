@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { login, type LoginFormState } from "./actions";
+import { DemoAuthPanel } from "@/components/demo-auth-panel";
 
 const initialState: LoginFormState = {};
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(login, initialState);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  function handleFillCredentials(demoEmail: string, demoPassword: string) {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 px-6 py-16">
@@ -35,6 +43,8 @@ export default function LoginPage() {
             id="email"
             name="email"
             type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             autoComplete="email"
             required
             className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
@@ -52,6 +62,8 @@ export default function LoginPage() {
             id="password"
             name="password"
             type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
             required
             className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
@@ -75,6 +87,8 @@ export default function LoginPage() {
           {isPending ? "Logging in…" : "Log in"}
         </button>
       </form>
+
+      <DemoAuthPanel onFillCredentials={handleFillCredentials} />
     </div>
   );
 }
