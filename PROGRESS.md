@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- Demo Auth Quick-Access: 1-click demo login & form fill for Alice and Bob in `apps/web/src/components/demo-auth-panel.tsx` and `loginAsDemoUser` in `apps/web/src/app/login/actions.ts`; auto-seeds demo accounts on demand to bypass SMTP confirmation delays during evaluations (US1, US2, RK11).
 - T16 (R9): Library compose + empty match. `AudioLibrary` composes `SearchField` + `searchAudioFiles` with `?q=` URL synchronization and background polling filter; `FileList` renders distinct empty-match message when no rows match query (US9, US14). Closes #39 and parent #10 (Epic R9 complete).
 - T15 (R9): Search field UI. Debounced (~250ms) search input in `apps/web/src/components/search-field.tsx` with clear button, Escape key reset, and isPending/disabled state (US9, US14). Closes #38.
 - T14 (R9): Search fetch helper. Authenticated helper `searchAudioFiles` in `apps/web/src/lib/search-audio.ts`. Empty/blank query returns all files (`created_at` desc); non-empty applies `.ilike("filename", pattern)`; unauthenticated returns friendly error. Closes #37.
@@ -83,6 +84,7 @@ Then:
 
 ## Decisions Log
 
+- Demo personas (Alice and Bob) provide 1-click authentication and credential auto-fill on `/login`. Uses real Supabase Auth accounts created on-demand, bypassing confirmation delays and mitigating SMTP rate limits (RK11) during live evaluation and collaborative demos.
 - Search query helper (`apps/web/src/lib/search-query.ts`) escapes `\` before `%` and `_` to prevent double-escaping backslashes in ILIKE patterns. Empty/whitespace queries return `{ empty: true }` so upstream components preserve the full library rather than treating empty input as zero results.
 - File-page notes subscribe via Supabase `postgres_changes` on `public.annotations` filtered by `audio_file_id`. Client merge is in `apps/web/src/lib/annotation-realtime.ts`. Username is filled by a follow-up select (Realtime payloads have no join). Ephemeral cursor/playback broadcast stays out (R7). Replica identity FULL + publication membership live in `supabase/migrations/20260917100000_enable_annotations_realtime.sql`.
 - Marker times come from WaveSurfer audio clock (`interaction` / click ratio × duration), rounded to 2 decimals via `roundAnnotationTime`. Regions plugin draws start/end; point notes use start===end. Avoid a second HTML5 `<audio>` clock (RK2).
