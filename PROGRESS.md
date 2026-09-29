@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T14 (R9): Search fetch helper. Authenticated helper `searchAudioFiles` in `apps/web/src/lib/search-audio.ts`. Empty/blank query returns all files (`created_at` desc); non-empty applies `.ilike("filename", pattern)`; unauthenticated returns friendly error. Closes #37.
 - T13 (R9): Search query helper. Pure TS in `apps/web/src/lib/search-query.ts`: trim, lowercase, escape ILIKE wildcards (`\`, `%`, `_`), build `%pattern%`, in-memory matcher; blank/whitespace returns `{ empty: true }`. Closes #36.
 - T12 (R3): Realtime + file page compose. `/files/[id]` wires peaks player + `AnnotationPanel`; `postgres_changes` on `annotations` merges INSERT/UPDATE/DELETE without a reload (US7, US8). Migration adds table to `supabase_realtime`. RK1 → Monitored. Closes #31 and #6.
 - T11 (R3): Timeline markers + click-to-stamp. WaveSurfer Regions from annotation start/end; click/seek reports audio-clock time (`onTimeSelect`). RK2 → Monitored. Closes #30 ([#34](https://github.com/bigzyzz/audio-annotation-extraction-tool/pull/34)).
@@ -68,7 +69,7 @@ R3 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #6):
 R9 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #10):
 
 - [x] **T13** R9 Search query helper — #36 `feat/r9-t13-search-query`
-- [ ] **T14** R9 Search fetch helper — #37 `feat/r9-t14-search-fetch`
+- [x] **T14** R9 Search fetch helper — #37 `feat/r9-t14-search-fetch`
 - [ ] **T15** R9 Search field UI — #38 `feat/r9-t15-search-field`
 - [ ] **T16** R9 Library compose + empty match — #39 `feat/r9-t16-library-search`
 
