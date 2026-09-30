@@ -45,11 +45,9 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<AnnotationListItem[]>([]);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
-  const [range, setRange] = useState<AnnotationPanelRange>({
-    start: 0,
-    end: 5,
-    isRange: false,
-  });
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [draftRange, setDraftRange] = useState<AnnotationPanelRange | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [seekRequest, setSeekRequest] = useState<WaveformSeekRequest | null>(
     null,
   );
@@ -210,25 +208,13 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   }, [initialFile.id, loadNotes]);
 
   const stampTime = useCallback((seconds: number) => {
-    const rounded = roundAnnotationTime(seconds);
     setCurrentTime(seconds);
-    setRange((prev) => ({
-      ...prev,
-      start: rounded,
-      end: prev.isRange ? (prev.end != null && prev.end > rounded ? prev.end : rounded + 3) : prev.end,
-    }));
   }, []);
 
   const jumpTo = useCallback((seconds: number) => {
-    const rounded = roundAnnotationTime(seconds);
     setCurrentTime(seconds);
     seekTokenRef.current += 1;
     setSeekRequest({ seconds, token: seekTokenRef.current });
-    setRange((prev) => ({
-      ...prev,
-      start: rounded,
-      end: prev.isRange ? (prev.end != null && prev.end > rounded ? prev.end : rounded + 3) : prev.end,
-    }));
   }, []);
 
   const onTimeUpdate = useCallback((seconds: number) => {
@@ -237,6 +223,45 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
     playheadStampRef.current = now;
     setCurrentTime(seconds);
   }, []);
+
+  const startAddAnnotation = useCallback(() => {
+    setIsSelecting(true);
+    setEditingId(null);
+    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
+    setDraftRange({
+      start: initialStart,
+      end: null,
+      isRange: false,
+    });
+  }, [currentTime]);
+
+  const cancelSelection = useCallback(() => {
+    setIsSelecting(false);
+    setEditingId(null);
+    setDraftRange(null);
+  }, []);
+
+  const handleEditingChange = useCallback(
+    (id: string | null) => {
+      setEditingId(id);
+      if (id) {
+        setIsSelecting(false);
+        const note = annotations.find((a) => a.id === id);
+        if (note) {
+          const s = Number(note.start_seconds);
+          const hasRange = note.end_seconds != null && Number(note.end_seconds) > s;
+          setDraftRange({
+            start: s,
+            end: hasRange ? Number(note.end_seconds) : null,
+            isRange: hasRange,
+          });
+        }
+      } else {
+        setDraftRange(null);
+      }
+    },
+    [annotations],
+  );
 
   return (
     <div className="flex w-full flex-col gap-10">
@@ -272,10 +297,10 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           title={file.filename}
           annotations={annotations}
           seekRequest={seekRequest}
-          selectedStart={range.start}
-          selectedEnd={range.end}
-          isRange={range.isRange}
-          onRangeChange={setRange}
+          isSelecting={isSelecting}
+          draftRange={draftRange}
+          onDraftRangeChange={setDraftRange}
+          editingAnnotationId={editingId}
           onTimeSelect={stampTime}
           onTimeUpdate={onTimeUpdate}
         />
@@ -286,11 +311,15 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           audioFileId={file.id}
           durationSeconds={file.duration_seconds}
           currentTime={currentTime}
-          selectedRange={range}
-          onRangeChange={setRange}
+          isSelecting={isSelecting}
+          onStartAdd={startAddAnnotation}
+          onCancelAdd={cancelSelection}
+          selectedRange={draftRange}
+          onRangeChange={setDraftRange}
           annotations={annotations}
           onNeedRefresh={loadNotes}
           onJumpTo={jumpTo}
+          onEditingChange={handleEditingChange}
         />
       </div>
     </div>

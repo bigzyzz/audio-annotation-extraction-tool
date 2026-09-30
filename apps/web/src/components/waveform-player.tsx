@@ -13,6 +13,7 @@ import {
   type ActiveAnnotationCandidate,
   type WaveformAnnotationMarker,
 } from "@/lib/waveform-markers";
+import { roundAnnotationTime } from "@/lib/annotations";
 
 export type WaveformSeekRequest = {
   seconds: number;
@@ -25,10 +26,10 @@ export type WaveformPlayerProps = {
   title?: string;
   annotations?: (WaveformAnnotationMarker & Partial<ActiveAnnotationCandidate>)[];
   seekRequest?: WaveformSeekRequest | null;
-  selectedStart?: number;
-  selectedEnd?: number | null;
-  isRange?: boolean;
-  onRangeChange?: (range: { start: number; end: number; isRange: boolean }) => void;
+  isSelecting?: boolean;
+  draftRange?: { start: number; end: number | null; isRange: boolean } | null;
+  onDraftRangeChange?: (range: { start: number; end: number | null; isRange: boolean }) => void;
+  editingAnnotationId?: string | null;
   onTimeSelect?: (seconds: number) => void;
   onTimeUpdate?: (seconds: number) => void;
 };
@@ -39,10 +40,10 @@ export function WaveformPlayer({
   title,
   annotations = [],
   seekRequest = null,
-  selectedStart = 0,
-  selectedEnd = 5,
-  isRange = false,
-  onRangeChange,
+  isSelecting = false,
+  draftRange = null,
+  onDraftRangeChange,
+  editingAnnotationId = null,
   onTimeSelect,
   onTimeUpdate,
 }: WaveformPlayerProps) {
@@ -51,6 +52,10 @@ export function WaveformPlayer({
   const regionsRef = useRef<RegionsPlugin | null>(null);
   const onTimeSelectRef = useRef(onTimeSelect);
   const onTimeUpdateRef = useRef(onTimeUpdate);
+  const isSelectingRef = useRef(isSelecting);
+  const draftRangeRef = useRef(draftRange);
+  const onDraftRangeChangeRef = useRef(onDraftRangeChange);
+  const editingAnnotationIdRef = useRef(editingAnnotationId);
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
@@ -61,7 +66,18 @@ export function WaveformPlayer({
   useEffect(() => {
     onTimeSelectRef.current = onTimeSelect;
     onTimeUpdateRef.current = onTimeUpdate;
-  }, [onTimeSelect, onTimeUpdate]);
+    isSelectingRef.current = isSelecting;
+    draftRangeRef.current = draftRange;
+    onDraftRangeChangeRef.current = onDraftRangeChange;
+    editingAnnotationIdRef.current = editingAnnotationId;
+  }, [
+    onTimeSelect,
+    onTimeUpdate,
+    isSelecting,
+    draftRange,
+    onDraftRangeChange,
+    editingAnnotationId,
+  ]);
 
   const peaksLoad = useMemo(() => {
     if (!peaks) return null;
@@ -125,6 +141,29 @@ export function WaveformPlayer({
         const time = clickRatioToAudioTime(relativeX, duration);
         setCurrentPlayheadTime(time);
         onTimeSelectRef.current?.(time);
+
+        if (isSelectingRef.current) {
+          const rounded = roundAnnotationTime(time);
+          const all = regions.getRegions();
+          for (const r of all) {
+            if (r.id === "__draft_annotation__") {
+              r.remove();
+            }
+          }
+          regions.addRegion({
+            id: "__draft_annotation__",
+            start: rounded,
+            end: rounded,
+            color: "rgba(59, 130, 246, 0.8)",
+            drag: true,
+            resize: false,
+          });
+          onDraftRangeChangeRef.current?.({
+            start: rounded,
+            end: null,
+            isRange: false,
+          });
+        }
       }),
       waveSurfer.on("timeupdate", (currentTime) => {
         setCurrentPlayheadTime(currentTime);
@@ -140,6 +179,54 @@ export function WaveformPlayer({
         waveSurfer.setTime(region.start);
         setCurrentPlayheadTime(region.start);
         onTimeSelectRef.current?.(region.start);
+      }),
+      regions.on("region-created", (region) => {
+        if (!isSelectingRef.current) return;
+        const all = regions.getRegions();
+        for (const r of all) {
+          if (r.id === "__draft_annotation__" && r !== region) {
+            r.remove();
+          }
+        }
+        region.id = "__draft_annotation__";
+        const start = roundAnnotationTime(region.start);
+        const end = roundAnnotationTime(region.end);
+        const isRange = end > start + 0.05;
+        onDraftRangeChangeRef.current?.({
+          start,
+          end: isRange ? end : null,
+          isRange,
+        });
+      }),
+      regions.on("region-update", (region) => {
+        if (
+          region.id === "__draft_annotation__" ||
+          (editingAnnotationIdRef.current && region.id === editingAnnotationIdRef.current)
+        ) {
+          const start = roundAnnotationTime(region.start);
+          const end = roundAnnotationTime(region.end);
+          const isRange = end > start + 0.05;
+          onDraftRangeChangeRef.current?.({
+            start,
+            end: isRange ? end : null,
+            isRange,
+          });
+        }
+      }),
+      regions.on("region-updated", (region) => {
+        if (
+          region.id === "__draft_annotation__" ||
+          (editingAnnotationIdRef.current && region.id === editingAnnotationIdRef.current)
+        ) {
+          const start = roundAnnotationTime(region.start);
+          const end = roundAnnotationTime(region.end);
+          const isRange = end > start + 0.05;
+          onDraftRangeChangeRef.current?.({
+            start,
+            end: isRange ? end : null,
+            isRange,
+          });
+        }
       }),
     ];
 
@@ -171,7 +258,79 @@ export function WaveformPlayer({
     for (const note of annotations) {
       regions.addRegion(annotationToRegionParams(note));
     }
+    if (draftRangeRef.current && isSelectingRef.current) {
+      const d = draftRangeRef.current;
+      regions.addRegion({
+        id: "__draft_annotation__",
+        start: d.start,
+        end: d.isRange && d.end != null ? d.end : d.start,
+        color: d.isRange ? "rgba(59, 130, 246, 0.35)" : "rgba(59, 130, 246, 0.8)",
+        drag: true,
+        resize: d.isRange,
+      });
+    }
   }, [annotations, ready]);
+
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !ready) return;
+
+    if (!isSelecting) {
+      const all = regions.getRegions();
+      for (const r of all) {
+        if (r.id === "__draft_annotation__") {
+          r.remove();
+        }
+      }
+      return;
+    }
+
+    if (draftRange) {
+      const existing = regions.getRegions().find((r) => r.id === "__draft_annotation__");
+      if (!existing) {
+        regions.addRegion({
+          id: "__draft_annotation__",
+          start: draftRange.start,
+          end: draftRange.isRange && draftRange.end != null ? draftRange.end : draftRange.start,
+          color: draftRange.isRange ? "rgba(59, 130, 246, 0.35)" : "rgba(59, 130, 246, 0.8)",
+          drag: true,
+          resize: draftRange.isRange,
+        });
+      }
+    }
+
+    const disableDrag = regions.enableDragSelection({
+      color: "rgba(59, 130, 246, 0.35)",
+      drag: true,
+      resize: true,
+    });
+
+    return () => {
+      disableDrag();
+    };
+  }, [isSelecting, draftRange, ready]);
+
+  useEffect(() => {
+    const regions = regionsRef.current;
+    if (!regions || !ready) return;
+
+    for (const r of regions.getRegions()) {
+      if (r.id === "__draft_annotation__") continue;
+      if (editingAnnotationId && r.id === editingAnnotationId) {
+        r.setOptions({
+          drag: true,
+          resize: true,
+          color: "rgba(245, 158, 11, 0.45)",
+        });
+      } else {
+        r.setOptions({
+          drag: false,
+          resize: false,
+          color: "rgba(59, 130, 246, 0.25)",
+        });
+      }
+    }
+  }, [editingAnnotationId, ready]);
 
   useEffect(() => {
     if (!ready || seekRequest == null) return;
@@ -187,10 +346,6 @@ export function WaveformPlayer({
   }, [annotations, currentPlayheadTime, playing]);
 
   const totalDuration = trackDuration || peaks?.duration_seconds || 0;
-  const actualEnd =
-    selectedEnd != null
-      ? selectedEnd
-      : Math.min(totalDuration || 60, selectedStart + 5);
 
   if (!audioUrl || !peaks) {
     return (
@@ -287,125 +442,21 @@ export function WaveformPlayer({
           aria-label={title ? `Waveform for ${title}` : "Audio waveform"}
         />
 
-        {/* Interactive Timeline Range Slider (directly under the waveform) */}
-        <div className="w-full flex flex-col gap-2.5 border-t border-zinc-200 bg-zinc-50/90 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/60">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 text-[11px]">
-              Timeline Section
+        {isSelecting ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-blue-200 bg-blue-50/90 px-4 py-2.5 text-xs text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-200">
+            <span className="flex items-center gap-2 font-medium">
+              <span className="inline-block h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+              Annotation Mode: Drag across the waveform to highlight a section, or click anywhere for a timestamp point.
             </span>
-            <span className="rounded bg-zinc-200/90 px-2 py-0.5 font-mono font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
-              {formatDurationSeconds(selectedStart)}
-              {isRange
-                ? ` – ${formatDurationSeconds(actualEnd)} (${(actualEnd - selectedStart).toFixed(2)}s)`
-                : " (Point marker)"}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-zinc-700 dark:text-zinc-300">
-              <input
-                type="checkbox"
-                checked={isRange}
-                onChange={(e) => {
-                  const checked = e.target.checked;
-                  onRangeChange?.({
-                    start: selectedStart,
-                    end: checked ? Math.max(selectedStart + 2, actualEnd) : actualEnd,
-                    isRange: checked,
-                  });
-                }}
-                className="rounded border-zinc-300 accent-black dark:border-zinc-700 dark:accent-zinc-50"
-              />
-              <span>Highlight range</span>
-            </label>
-
-            <button
-              type="button"
-              disabled={!ready}
-              onClick={() => {
-                onRangeChange?.({
-                  start: currentPlayheadTime,
-                  end: isRange && currentPlayheadTime > actualEnd ? currentPlayheadTime + 2 : actualEnd,
-                  isRange,
-                });
-              }}
-              className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
-            >
-              Snap start to playhead
-            </button>
-
-            {isRange ? (
-              <button
-                type="button"
-                disabled={!ready}
-                onClick={() => {
-                  onRangeChange?.({
-                    start: selectedStart,
-                    end: Math.max(selectedStart, currentPlayheadTime),
-                    isRange: true,
-                  });
-                }}
-                className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
-              >
-                Snap end to playhead
-              </button>
+            {draftRange ? (
+              <span className="rounded bg-blue-100/90 px-2 py-0.5 font-mono font-semibold dark:bg-blue-900/50">
+                {draftRange.isRange && draftRange.end != null
+                  ? `${formatDurationSeconds(draftRange.start)} – ${formatDurationSeconds(draftRange.end)} (${(draftRange.end - draftRange.start).toFixed(2)}s)`
+                  : `${formatDurationSeconds(draftRange.start)} (${draftRange.start.toFixed(2)}s)`}
+              </span>
             ) : null}
           </div>
-        </div>
-
-        {/* Start Slider directly under waveform */}
-        <div className="flex items-center gap-3">
-          <span className="w-12 text-xs font-medium text-zinc-500 dark:text-zinc-400">Start</span>
-          <input
-            type="range"
-            min={0}
-            max={totalDuration || 60}
-            step={0.01}
-            value={selectedStart}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              onRangeChange?.({
-                start: v,
-                end: isRange && v > actualEnd ? v : actualEnd,
-                isRange,
-              });
-            }}
-            className="flex-1 accent-black dark:accent-zinc-50"
-            aria-label="Section start slider"
-          />
-          <span className="w-16 text-right font-mono text-xs text-zinc-700 dark:text-zinc-300">
-            {formatDurationSeconds(selectedStart)}
-          </span>
-        </div>
-
-        {/* End Slider directly under waveform */}
-        {isRange ? (
-          <div className="flex items-center gap-3">
-            <span className="w-12 text-xs font-medium text-zinc-500 dark:text-zinc-400">End</span>
-            <input
-              type="range"
-              min={selectedStart}
-              max={totalDuration || 60}
-              step={0.01}
-              value={actualEnd}
-              onChange={(e) => {
-                const v = Math.max(selectedStart, Number(e.target.value));
-                onRangeChange?.({
-                  start: selectedStart,
-                  end: v,
-                  isRange: true,
-                });
-              }}
-              className="flex-1 accent-black dark:accent-zinc-50"
-              aria-label="Section end slider"
-            />
-            <span className="w-16 text-right font-mono text-xs text-zinc-700 dark:text-zinc-300">
-              {formatDurationSeconds(actualEnd)}
-            </span>
-          </div>
         ) : null}
-        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4 pt-1">

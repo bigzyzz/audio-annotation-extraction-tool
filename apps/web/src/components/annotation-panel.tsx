@@ -26,12 +26,15 @@ export type AnnotationPanelProps = {
   audioFileId: string;
   durationSeconds?: number | null;
   currentTime?: number | null;
-  selectedRange?: AnnotationPanelRange;
+  isSelecting?: boolean;
+  onStartAdd?: () => void;
+  onCancelAdd?: () => void;
+  selectedRange?: AnnotationPanelRange | null;
   onRangeChange?: (range: AnnotationPanelRange) => void;
-  /** Controlled list. When omitted, the panel loads notes itself. */
   annotations?: AnnotationListItem[];
   onNeedRefresh?: () => void;
   onJumpTo?: (seconds: number) => void;
+  onEditingChange?: (annotationId: string | null) => void;
 };
 
 const LOAD_ERROR = "Couldn't load notes for this track. Try again.";
@@ -95,13 +98,16 @@ export async function fetchAnnotationsForFile(
 
 export function AnnotationPanel({
   audioFileId,
-  durationSeconds = null,
   currentTime = null,
+  isSelecting: isSelectingProp,
+  onStartAdd,
+  onCancelAdd,
   selectedRange,
   onRangeChange,
   annotations: controlledAnnotations,
   onNeedRefresh,
   onJumpTo,
+  onEditingChange,
 }: AnnotationPanelProps) {
   const controlled = controlledAnnotations !== undefined;
   const [loaded, setLoaded] = useState<AnnotationListItem[]>([]);
@@ -111,48 +117,32 @@ export function AnnotationPanel({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isAddingLocal, setIsAddingLocal] = useState(false);
 
   const [localRange, setLocalRange] = useState<AnnotationPanelRange>(() => ({
     start: currentTime != null ? roundAnnotationTime(currentTime) : 0,
-    end: currentTime != null ? roundAnnotationTime(currentTime) + 5 : 5,
+    end: null,
     isRange: false,
   }));
 
-  const range = selectedRange ?? localRange;
+  const isAdding = isSelectingProp ?? isAddingLocal;
+  const range = selectedRange !== undefined ? selectedRange : localRange;
+
   const updateRange = useCallback(
-    (updater: AnnotationPanelRange | ((prev: AnnotationPanelRange) => AnnotationPanelRange)) => {
+    (newRange: AnnotationPanelRange) => {
       if (onRangeChange) {
-        if (typeof updater === "function") {
-          onRangeChange(updater(range));
-        } else {
-          onRangeChange(updater);
-        }
+        onRangeChange(newRange);
       } else {
-        setLocalRange(updater);
+        setLocalRange(newRange);
       }
     },
-    [onRangeChange, range],
+    [onRangeChange],
   );
 
   const [label, setLabel] = useState("");
   const [comment, setComment] = useState("");
 
   const annotations = controlled ? controlledAnnotations : loaded;
-
-  const maxDuration = useMemo(() => {
-    if (durationSeconds != null && durationSeconds > 0) return durationSeconds;
-    let maxNote = 60;
-    for (const a of annotations) {
-      if (a.end_seconds && a.end_seconds > maxNote) maxNote = a.end_seconds;
-      if (a.start_seconds > maxNote) maxNote = a.start_seconds;
-    }
-    return Math.ceil(maxNote);
-  }, [durationSeconds, annotations]);
-
-  const effectiveStart = range.start;
-  const effectiveEnd = range.isRange
-    ? Math.max(effectiveStart, range.end ?? effectiveStart + 5)
-    : effectiveStart;
 
   const refresh = useCallback(async () => {
     if (controlled) {
@@ -200,13 +190,15 @@ export function AnnotationPanel({
     [annotations, editingId],
   );
 
-  function resetForm() {
+  function startAdd() {
     setEditingId(null);
-    setPendingDeleteId(null);
+    onEditingChange?.(null);
+    setIsAddingLocal(true);
+    onStartAdd?.();
     const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
     updateRange({
       start: initialStart,
-      end: Math.min(maxDuration, initialStart + 5),
+      end: null,
       isRange: false,
     });
     setLabel("");
@@ -214,12 +206,26 @@ export function AnnotationPanel({
     setError(null);
   }
 
+  function handleCancel() {
+    setEditingId(null);
+    setIsAddingLocal(false);
+    onEditingChange?.(null);
+    onCancelAdd?.();
+    setLabel("");
+    setComment("");
+    setError(null);
+    setPendingDeleteId(null);
+  }
+
   function beginEdit(note: AnnotationListItem) {
     setEditingId(note.id);
+    setIsAddingLocal(false);
+    onEditingChange?.(note.id);
     setPendingDeleteId(null);
+
     const s = asSeconds(note.start_seconds);
     const hasRange = note.end_seconds != null && note.end_seconds > note.start_seconds;
-    const e = hasRange ? asSeconds(note.end_seconds) : Math.min(maxDuration, s + 5);
+    const e = hasRange ? asSeconds(note.end_seconds) : null;
 
     updateRange({
       start: s,
@@ -236,8 +242,9 @@ export function AnnotationPanel({
     event.preventDefault();
     setError(null);
 
-    const startSeconds = roundAnnotationTime(effectiveStart);
-    const endSeconds = range.isRange ? roundAnnotationTime(effectiveEnd) : null;
+    const activeStart = range?.start ?? (currentTime != null ? roundAnnotationTime(currentTime) : 0);
+    const startSeconds = roundAnnotationTime(activeStart);
+    const endSeconds = range?.isRange && range.end != null ? roundAnnotationTime(range.end) : null;
 
     if (endSeconds != null && endSeconds < startSeconds) {
       setError("End time cannot be earlier than start time.");
@@ -271,7 +278,7 @@ export function AnnotationPanel({
       return;
     }
 
-    resetForm();
+    handleCancel();
     await refresh();
   }
 
@@ -287,158 +294,117 @@ export function AnnotationPanel({
       return;
     }
 
-    if (editingId === note.id) resetForm();
+    if (editingId === note.id) handleCancel();
     setPendingDeleteId(null);
     await refresh();
   }
 
+  const showForm = isAdding || editingId != null;
+
   return (
     <section className="flex w-full flex-col gap-6" aria-labelledby="annotation-heading">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2
           id="annotation-heading"
           className="text-xl font-semibold text-black dark:text-zinc-50"
         >
-          Notes & Annotations ({annotations.length})
+          Annotations
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Adjust the timeline section slider directly under the waveform, then add labels and comments.
-        </p>
+        {!showForm ? (
+          <button
+            type="button"
+            onClick={startAdd}
+            className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          >
+            <span className="text-base font-bold leading-none">+</span>
+            <span>Add Annotation</span>
+          </button>
+        ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
-        {/* Left Column: Form with Target Timestamp Info & Fine-Tuning */}
-        <div className="lg:col-span-5 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-            {editing ? "Edit Note" : "Add Note"}
-          </h3>
-
-          <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
-            {/* Timeline Section Info & Fine-Tuning */}
-            <div className="flex flex-col gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/40">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Target Timestamp
-                </span>
-                <span className="rounded bg-zinc-200/80 px-2 py-0.5 font-mono text-xs font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
-                  {range.isRange
-                    ? `${formatDurationSeconds(effectiveStart)} – ${formatDurationSeconds(effectiveEnd)} (${(effectiveEnd - effectiveStart).toFixed(2)}s)`
-                    : `${formatDurationSeconds(effectiveStart)} (${effectiveStart.toFixed(2)}s)`}
-                </span>
-              </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Adjust section sliders directly beneath the waveform, or fine-tune exact seconds below:
-              </p>
-              <div className="flex flex-wrap items-center gap-4 pt-1">
-                <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  <span>Start (s):</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={maxDuration}
-                    step={0.01}
-                    value={effectiveStart.toFixed(2)}
-                    disabled={busy}
-                    onChange={(e) => {
-                      const v = Math.max(0, Math.min(maxDuration, Number(e.target.value) || 0));
-                      updateRange((prev) => ({
-                        ...prev,
-                        start: v,
-                        end: prev.isRange && prev.end != null && prev.end < v ? v : prev.end,
-                      }));
-                    }}
-                    className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1 font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                    aria-label="Start timestamp in seconds"
-                  />
-                </label>
-                {range.isRange ? (
-                  <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    <span>End (s):</span>
-                    <input
-                      type="number"
-                      min={effectiveStart}
-                      max={maxDuration}
-                      step={0.01}
-                      value={effectiveEnd.toFixed(2)}
-                      disabled={busy}
-                      onChange={(e) => {
-                        const v = Math.max(effectiveStart, Math.min(maxDuration, Number(e.target.value) || 0));
-                        updateRange((prev) => ({
-                          ...prev,
-                          end: v,
-                        }));
-                      }}
-                      className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1 font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-                      aria-label="End timestamp in seconds"
-                    />
-                  </label>
-                ) : null}
+      <div className="flex w-full flex-col gap-6">
+        {showForm ? (
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                {editing ? "Edit Annotation" : "Add Annotation"}
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">Selected:</span>
+                {range ? (
+                  <span className="rounded bg-blue-100/90 px-2.5 py-1 font-mono text-xs font-semibold text-blue-900 dark:bg-blue-950/60 dark:text-blue-300">
+                    {range.isRange && range.end != null
+                      ? `${formatDurationSeconds(range.start)} – ${formatDurationSeconds(range.end)} (${(range.end - range.start).toFixed(2)}s)`
+                      : `${formatDurationSeconds(range.start)} (${range.start.toFixed(2)}s)`}
+                  </span>
+                ) : (
+                  <span className="rounded bg-zinc-100 px-2.5 py-1 text-xs italic text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                    Highlight a section or click on the waveform above
+                  </span>
+                )}
               </div>
             </div>
 
-            <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
-              <span className="font-medium">Label</span>
-              <input
-                type="text"
-                value={label}
-                disabled={busy}
-                onChange={(event) => setLabel(event.target.value)}
-                placeholder="e.g. vocal lead, drop, chorus, snare eq"
-                className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
-              />
-            </label>
+            <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+              <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium">Label</span>
+                <input
+                  type="text"
+                  value={label}
+                  disabled={busy}
+                  onChange={(event) => setLabel(event.target.value)}
+                  placeholder="e.g. vocal hook, bass drop, chorus, snare eq"
+                  className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
+                />
+              </label>
 
-            <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
-              <span className="font-medium">Comment</span>
-              <textarea
-                value={comment}
-                disabled={busy}
-                rows={3}
-                onChange={(event) => setComment(event.target.value)}
-                placeholder="Provide feedback or production notes for this section…"
-                className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
-              />
-            </label>
+              <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium">Comment</span>
+                <textarea
+                  value={comment}
+                  disabled={busy}
+                  rows={3}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Provide feedback or production notes for this section…"
+                  className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
+                />
+              </label>
 
-            {error ? (
-              <p
-                role="alert"
-                className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-              >
-                {error}
-              </p>
-            ) : null}
+              {error ? (
+                <p
+                  role="alert"
+                  className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+                >
+                  {error}
+                </p>
+              ) : null}
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={busy}
-                className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
-              >
-                {busy ? "Saving…" : editing ? "Update note" : "Add note"}
-              </button>
-              {editing ? (
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
+                >
+                  {busy ? "Saving…" : editing ? "Update annotation" : "Save annotation"}
+                </button>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={resetForm}
+                  onClick={handleCancel}
                   className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>
-              ) : null}
-            </div>
-          </form>
-        </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
 
-        {/* Right Column: Timeline Notes List */}
-        <div className="lg:col-span-7 flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        {/* Timeline Notes List */}
+        <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Timeline Notes ({annotations.length})
-            </h3>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              Click timestamp to jump playhead
+              {annotations.length} {annotations.length === 1 ? "annotation" : "annotations"} • Click timestamp to jump playhead
             </span>
           </div>
 
@@ -451,14 +417,14 @@ export function AnnotationPanel({
           {annotations.length === 0 ? (
             <div className="rounded-lg border border-dashed border-zinc-200 py-12 text-center dark:border-zinc-800">
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                No notes yet on this track.
+                No annotations yet on this track.
               </p>
               <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                Pick a timestamp or range on the left and click &ldquo;Add note&rdquo;.
+                Click &ldquo;Add Annotation&rdquo; above to highlight a section on the waveform.
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 max-h-[580px] overflow-y-auto pr-1">
+            <div className="flex flex-col gap-3">
               {annotations.map((note) => {
                 const own = userId != null && note.author_id === userId;
                 return (
