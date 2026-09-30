@@ -94,3 +94,8 @@ export function clickRatioToAudioTime(
   const clamped = Math.min(1, Math.max(0, relativeX));
   return roundAnnotationTime(clamped * durationSeconds);
 }
+
+export function clampAudioTime(time: number, durationSeconds: number): number {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return 0;
+  return Math.min(durationSeconds, Math.max(0, time));
+}

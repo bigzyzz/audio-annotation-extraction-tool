@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createSignedPlaybackUrl } from "@/lib/signed-url";
 import {
   WaveformPlayer,
+  type WaveformPreviewRequest,
   type WaveformSeekRequest,
 } from "@/components/waveform-player";
 import {
@@ -51,8 +52,11 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   const [seekRequest, setSeekRequest] = useState<WaveformSeekRequest | null>(
     null,
   );
+  const [previewRequest, setPreviewRequest] =
+    useState<WaveformPreviewRequest | null>(null);
   const playheadStampRef = useRef(0);
   const seekTokenRef = useRef(0);
+  const previewTokenRef = useRef(0);
 
   const loadFile = useCallback(async () => {
     const supabase = createClient();
@@ -241,6 +245,11 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
     setDraftRange(null);
   }, []);
 
+  const previewRange = useCallback((start: number, end: number) => {
+    previewTokenRef.current += 1;
+    setPreviewRequest({ start, end, token: previewTokenRef.current });
+  }, []);
+
   const handleEditingChange = useCallback(
     (id: string | null) => {
       setEditingId(id);
@@ -297,6 +306,7 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           title={file.filename}
           annotations={annotations}
           seekRequest={seekRequest}
+          previewRequest={previewRequest}
           isSelecting={isSelecting}
           draftRange={draftRange}
           onDraftRangeChange={setDraftRange}
@@ -320,6 +330,7 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           onNeedRefresh={loadNotes}
           onJumpTo={jumpTo}
           onEditingChange={handleEditingChange}
+          onPreviewRange={previewRange}
         />
       </div>
     </div>

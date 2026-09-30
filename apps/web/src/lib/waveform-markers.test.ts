@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   annotationToRegionParams,
+  clampAudioTime,
   clickRatioToAudioTime,
   findActiveAnnotation,
 } from "./waveform-markers";
@@ -42,6 +43,16 @@ describe("clickRatioToAudioTime", () => {
     assert.equal(clickRatioToAudioTime(0.5, 10), 5);
     assert.equal(clickRatioToAudioTime(-0.1, 10), 0);
     assert.equal(clickRatioToAudioTime(1.2, 10), 10);
+  });
+});
+
+describe("clampAudioTime", () => {
+  it("clamps time within 0 and total duration", () => {
+    assert.equal(clampAudioTime(5, 10), 5);
+    assert.equal(clampAudioTime(-2, 10), 0);
+    assert.equal(clampAudioTime(15, 10), 10);
+    assert.equal(clampAudioTime(5, 0), 0);
+    assert.equal(clampAudioTime(5, -10), 0);
   });
 });
 

@@ -35,6 +35,7 @@ export type AnnotationPanelProps = {
   onNeedRefresh?: () => void;
   onJumpTo?: (seconds: number) => void;
   onEditingChange?: (annotationId: string | null) => void;
+  onPreviewRange?: (start: number, end: number) => void;
 };
 
 const LOAD_ERROR = "Couldn't load notes for this track. Try again.";
@@ -108,6 +109,7 @@ export function AnnotationPanel({
   onNeedRefresh,
   onJumpTo,
   onEditingChange,
+  onPreviewRange,
 }: AnnotationPanelProps) {
   const controlled = controlledAnnotations !== undefined;
   const [loaded, setLoaded] = useState<AnnotationListItem[]>([]);
@@ -329,7 +331,7 @@ export function AnnotationPanel({
               <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 {editing ? "Edit Annotation" : "Add Annotation"}
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">Selected:</span>
                 {range ? (
                   <span className="rounded bg-blue-100/90 px-2.5 py-1 font-mono text-xs font-semibold text-blue-900 dark:bg-blue-950/60 dark:text-blue-300">
@@ -342,6 +344,35 @@ export function AnnotationPanel({
                     Highlight a section or click on the waveform above
                   </span>
                 )}
+
+                {currentTime != null ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const s = roundAnnotationTime(currentTime);
+                      updateRange({
+                        start: s,
+                        end: null,
+                        isRange: false,
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 text-xs font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
+                    title="Stamp current playback time onto this annotation"
+                  >
+                    ⏱ Use Playhead ({formatDurationSeconds(currentTime)})
+                  </button>
+                ) : null}
+
+                {range?.isRange && range.end != null && onPreviewRange ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreviewRange(range.start, range.end!)}
+                    className="flex items-center gap-1 rounded border border-blue-400 bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    title="Play highlighted section"
+                  >
+                    ▶ Preview Selection
+                  </button>
+                ) : null}
               </div>
             </div>
 
