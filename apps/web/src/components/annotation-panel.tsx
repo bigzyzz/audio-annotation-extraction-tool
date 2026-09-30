@@ -7,20 +7,35 @@ import { createClient } from "@/lib/supabase/client";
 import {
   createAnnotation,
   deleteAnnotation,
+  roundAnnotationTime,
   updateAnnotation,
 } from "@/lib/annotations";
+import { formatDurationSeconds } from "@/lib/format-duration";
 
 export type AnnotationListItem = Annotation & {
   author_username: string | null;
 };
 
+export type AnnotationPanelRange = {
+  start: number;
+  end: number | null;
+  isRange: boolean;
+};
+
 export type AnnotationPanelProps = {
   audioFileId: string;
+  durationSeconds?: number | null;
   currentTime?: number | null;
-  /** Controlled list. When omitted, the panel loads notes itself. */
+  isSelecting?: boolean;
+  onStartAdd?: () => void;
+  onCancelAdd?: () => void;
+  selectedRange?: AnnotationPanelRange | null;
+  onRangeChange?: (range: AnnotationPanelRange) => void;
   annotations?: AnnotationListItem[];
   onNeedRefresh?: () => void;
   onJumpTo?: (seconds: number) => void;
+  onEditingChange?: (annotationId: string | null) => void;
+  onPreviewRange?: (start: number, end: number) => void;
 };
 
 const LOAD_ERROR = "Couldn't load notes for this track. Try again.";
@@ -82,20 +97,19 @@ export async function fetchAnnotationsForFile(
   return { ok: true, annotations };
 }
 
-function parseOptionalTime(raw: string): number | null | undefined {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const value = Number(trimmed);
-  if (!Number.isFinite(value)) return undefined;
-  return value;
-}
-
 export function AnnotationPanel({
   audioFileId,
   currentTime = null,
+  isSelecting: isSelectingProp,
+  onStartAdd,
+  onCancelAdd,
+  selectedRange,
+  onRangeChange,
   annotations: controlledAnnotations,
   onNeedRefresh,
   onJumpTo,
+  onEditingChange,
+  onPreviewRange,
 }: AnnotationPanelProps) {
   const controlled = controlledAnnotations !== undefined;
   const [loaded, setLoaded] = useState<AnnotationListItem[]>([]);
@@ -105,17 +119,32 @@ export function AnnotationPanel({
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [startInput, setStartInput] = useState("0.00");
-  const [endInput, setEndInput] = useState("");
+  const [isAddingLocal, setIsAddingLocal] = useState(false);
+
+  const [localRange, setLocalRange] = useState<AnnotationPanelRange>(() => ({
+    start: currentTime != null ? roundAnnotationTime(currentTime) : 0,
+    end: null,
+    isRange: false,
+  }));
+
+  const isAdding = isSelectingProp ?? isAddingLocal;
+  const range = selectedRange !== undefined ? selectedRange : localRange;
+
+  const updateRange = useCallback(
+    (newRange: AnnotationPanelRange) => {
+      if (onRangeChange) {
+        onRangeChange(newRange);
+      } else {
+        setLocalRange(newRange);
+      }
+    },
+    [onRangeChange],
+  );
+
   const [label, setLabel] = useState("");
   const [comment, setComment] = useState("");
-  const [startDirty, setStartDirty] = useState(false);
 
   const annotations = controlled ? controlledAnnotations : loaded;
-  const playheadStart =
-    !startDirty && currentTime != null
-      ? asSeconds(currentTime).toFixed(2)
-      : startInput;
 
   const refresh = useCallback(async () => {
     if (controlled) {
@@ -163,25 +192,49 @@ export function AnnotationPanel({
     [annotations, editingId],
   );
 
-  function resetForm() {
+  function startAdd() {
     setEditingId(null);
-    setPendingDeleteId(null);
-    setStartDirty(false);
-    setStartInput(
-      currentTime == null ? "0.00" : asSeconds(currentTime).toFixed(2),
-    );
-    setEndInput("");
+    onEditingChange?.(null);
+    setIsAddingLocal(true);
+    onStartAdd?.();
+    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
+    updateRange({
+      start: initialStart,
+      end: null,
+      isRange: false,
+    });
     setLabel("");
     setComment("");
     setError(null);
   }
 
+  function handleCancel() {
+    setEditingId(null);
+    setIsAddingLocal(false);
+    onEditingChange?.(null);
+    onCancelAdd?.();
+    setLabel("");
+    setComment("");
+    setError(null);
+    setPendingDeleteId(null);
+  }
+
   function beginEdit(note: AnnotationListItem) {
     setEditingId(note.id);
+    setIsAddingLocal(false);
+    onEditingChange?.(note.id);
     setPendingDeleteId(null);
-    setStartDirty(true);
-    setStartInput(asSeconds(note.start_seconds).toFixed(2));
-    setEndInput(note.end_seconds == null ? "" : asSeconds(note.end_seconds).toFixed(2));
+
+    const s = asSeconds(note.start_seconds);
+    const hasRange = note.end_seconds != null && note.end_seconds > note.start_seconds;
+    const e = hasRange ? asSeconds(note.end_seconds) : null;
+
+    updateRange({
+      start: s,
+      end: e,
+      isRange: hasRange,
+    });
+
     setLabel(note.label ?? "");
     setComment(note.comment ?? "");
     setError(null);
@@ -191,10 +244,12 @@ export function AnnotationPanel({
     event.preventDefault();
     setError(null);
 
-    const startSeconds = Number(playheadStart);
-    const endSeconds = parseOptionalTime(endInput);
-    if (endSeconds === undefined) {
-      setError("End time must be a valid number of seconds.");
+    const activeStart = range?.start ?? (currentTime != null ? roundAnnotationTime(currentTime) : 0);
+    const startSeconds = roundAnnotationTime(activeStart);
+    const endSeconds = range?.isRange && range.end != null ? roundAnnotationTime(range.end) : null;
+
+    if (endSeconds != null && endSeconds < startSeconds) {
+      setError("End time cannot be earlier than start time.");
       return;
     }
 
@@ -225,7 +280,7 @@ export function AnnotationPanel({
       return;
     }
 
-    resetForm();
+    handleCancel();
     await refresh();
   }
 
@@ -241,208 +296,249 @@ export function AnnotationPanel({
       return;
     }
 
-    if (editingId === note.id) resetForm();
+    if (editingId === note.id) handleCancel();
     setPendingDeleteId(null);
     await refresh();
   }
 
+  const showForm = isAdding || editingId != null;
+
   return (
-    <section className="flex w-full flex-col gap-4" aria-labelledby="annotation-heading">
-      <div>
+    <section className="flex w-full flex-col gap-6" aria-labelledby="annotation-heading">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h2
           id="annotation-heading"
-          className="text-lg font-semibold text-black dark:text-zinc-50"
+          className="text-xl font-semibold text-black dark:text-zinc-50"
         >
-          Notes
+          Annotations
         </h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Leave a label or comment at a timestamp. Optional end time marks a range.
-        </p>
+        {!showForm ? (
+          <button
+            type="button"
+            onClick={startAdd}
+            className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+          >
+            <span className="text-base font-bold leading-none">+</span>
+            <span>Add Annotation</span>
+          </button>
+        ) : null}
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-3" noValidate>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-            Start (seconds)
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              required
-              value={playheadStart}
-              disabled={busy}
-              onChange={(event) => {
-                setStartDirty(true);
-                setStartInput(event.target.value);
-              }}
-              className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black dark:border-zinc-700 dark:text-zinc-50"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-            End (optional)
-            <input
-              type="number"
-              min={0}
-              step={0.01}
-              value={endInput}
-              disabled={busy}
-              onChange={(event) => setEndInput(event.target.value)}
-              className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black dark:border-zinc-700 dark:text-zinc-50"
-            />
-          </label>
-        </div>
+      <div className="flex w-full flex-col gap-6">
+        {showForm ? (
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                {editing ? "Edit Annotation" : "Add Annotation"}
+              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">Selected:</span>
+                {range ? (
+                  <span className="rounded bg-blue-100/90 px-2.5 py-1 font-mono text-xs font-semibold text-blue-900 dark:bg-blue-950/60 dark:text-blue-300">
+                    {range.isRange && range.end != null
+                      ? `${formatDurationSeconds(range.start)} – ${formatDurationSeconds(range.end)} (${(range.end - range.start).toFixed(2)}s)`
+                      : `${formatDurationSeconds(range.start)} (${range.start.toFixed(2)}s)`}
+                  </span>
+                ) : (
+                  <span className="rounded bg-zinc-100 px-2.5 py-1 text-xs italic text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                    Highlight a section or click on the waveform above
+                  </span>
+                )}
 
-        <button
-          type="button"
-          disabled={busy || currentTime == null}
-          onClick={() => {
-            if (currentTime == null) return;
-            setStartDirty(true);
-            setStartInput(asSeconds(currentTime).toFixed(2));
-          }}
-          className="self-start text-sm font-medium text-zinc-700 underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-300"
-        >
-          Use playhead
-        </button>
-
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-          Label
-          <input
-            type="text"
-            value={label}
-            disabled={busy}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="e.g. kick, vocal"
-            className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black dark:border-zinc-700 dark:text-zinc-50"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
-          Comment
-          <textarea
-            value={comment}
-            disabled={busy}
-            rows={3}
-            onChange={(event) => setComment(event.target.value)}
-            placeholder="What should change here?"
-            className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black dark:border-zinc-700 dark:text-zinc-50"
-          />
-        </label>
-
-        {error ? (
-          <p
-            role="alert"
-            className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-          >
-            {error}
-          </p>
-        ) : null}
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="submit"
-            disabled={busy}
-            className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
-          >
-            {busy ? "Saving…" : editing ? "Save note" : "Add note"}
-          </button>
-          {editing ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={resetForm}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-black disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-50"
-            >
-              Cancel
-            </button>
-          ) : null}
-        </div>
-      </form>
-
-      {loadError ? (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          {loadError}
-        </p>
-      ) : null}
-
-      {annotations.length === 0 ? (
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-          No notes yet. Add a label or comment to leave the first one.
-        </p>
-      ) : (
-        <ul className="divide-y divide-zinc-200 rounded-md border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-          {annotations.map((note) => {
-            const own = userId != null && note.author_id === userId;
-            return (
-              <li key={note.id} className="flex flex-col gap-2 px-3 py-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                {currentTime != null ? (
                   <button
                     type="button"
-                    onClick={() => onJumpTo?.(asSeconds(note.start_seconds))}
-                    className="text-left text-sm font-medium text-black hover:underline dark:text-zinc-50"
+                    onClick={() => {
+                      const s = roundAnnotationTime(currentTime);
+                      updateRange({
+                        start: s,
+                        end: null,
+                        isRange: false,
+                      });
+                    }}
+                    className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 text-xs font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
+                    title="Stamp current playback time onto this annotation"
                   >
-                    {formatAnnotationStamp(note.start_seconds, note.end_seconds)}
+                    ⏱ Use Playhead ({formatDurationSeconds(currentTime)})
                   </button>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {note.author_username ?? "Unknown"}
-                  </span>
-                </div>
-                {note.label ? (
-                  <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                    {note.label}
-                  </p>
                 ) : null}
-                {note.comment ? (
-                  <p className="text-sm text-zinc-700 dark:text-zinc-300">
-                    {note.comment}
-                  </p>
+
+                {range?.isRange && range.end != null && onPreviewRange ? (
+                  <button
+                    type="button"
+                    onClick={() => onPreviewRange(range.start, range.end!)}
+                    className="flex items-center gap-1 rounded border border-blue-400 bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    title="Play highlighted section"
+                  >
+                    ▶ Preview Selection
+                  </button>
                 ) : null}
-                {own ? (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => beginEdit(note)}
-                      className="text-sm font-medium text-zinc-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-zinc-300"
-                    >
-                      Edit
-                    </button>
-                    {pendingDeleteId === note.id ? (
-                      <>
+              </div>
+            </div>
+
+            <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+              <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium">Label</span>
+                <input
+                  type="text"
+                  value={label}
+                  disabled={busy}
+                  onChange={(event) => setLabel(event.target.value)}
+                  placeholder="e.g. vocal hook, bass drop, chorus, snare eq"
+                  className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
+                <span className="font-medium">Comment</span>
+                <textarea
+                  value={comment}
+                  disabled={busy}
+                  rows={3}
+                  onChange={(event) => setComment(event.target.value)}
+                  placeholder="Provide feedback or production notes for this section…"
+                  className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
+                />
+              </label>
+
+              {error ? (
+                <p
+                  role="alert"
+                  className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+                >
+                  {error}
+                </p>
+              ) : null}
+
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
+                >
+                  {busy ? "Saving…" : editing ? "Update annotation" : "Save annotation"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleCancel}
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : null}
+
+        {/* Timeline Notes List */}
+        <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {annotations.length} {annotations.length === 1 ? "annotation" : "annotations"} • Click timestamp to jump playhead
+            </span>
+          </div>
+
+          {loadError ? (
+            <p role="status" className="text-sm text-red-600 dark:text-red-400">
+              {loadError}
+            </p>
+          ) : null}
+
+          {annotations.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-zinc-200 py-12 text-center dark:border-zinc-800">
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                No annotations yet on this track.
+              </p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                Click &ldquo;Add Annotation&rdquo; above to highlight a section on the waveform.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {annotations.map((note) => {
+                const own = userId != null && note.author_id === userId;
+                return (
+                  <div
+                    key={note.id}
+                    className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50/60 p-3.5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-zinc-700"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onJumpTo?.(asSeconds(note.start_seconds))}
+                          className="inline-flex items-center rounded bg-zinc-200/90 px-2 py-0.5 text-xs font-mono font-medium text-zinc-900 transition-colors hover:bg-black hover:text-white dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900"
+                          title="Jump playhead to note"
+                        >
+                          ▶ {formatAnnotationStamp(note.start_seconds, note.end_seconds)}
+                        </button>
+                        {note.label ? (
+                          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                            {note.label}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        @{note.author_username ?? "Unknown"}
+                      </span>
+                    </div>
+
+                    {note.comment ? (
+                      <p className="text-sm text-zinc-700 dark:text-zinc-300">
+                        {note.comment}
+                      </p>
+                    ) : null}
+
+                    {own ? (
+                      <div className="flex items-center gap-3 pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => void confirmDelete(note)}
-                          className="text-sm font-medium text-red-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-red-300"
+                          onClick={() => beginEdit(note)}
+                          className="text-xs font-medium text-zinc-600 hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
                         >
-                          Confirm delete
+                          Edit
                         </button>
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => setPendingDeleteId(null)}
-                          className="text-sm font-medium text-zinc-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-zinc-300"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => setPendingDeleteId(note.id)}
-                        className="text-sm font-medium text-zinc-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-zinc-300"
-                      >
-                        Delete
-                      </button>
-                    )}
+                        {pendingDeleteId === note.id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void confirmDelete(note)}
+                              className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400"
+                            >
+                              Confirm delete
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setPendingDeleteId(null)}
+                              className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setPendingDeleteId(note.id)}
+                            className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

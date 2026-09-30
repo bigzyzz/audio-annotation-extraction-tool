@@ -6,13 +6,16 @@ import { createClient } from "@/lib/supabase/client";
 import { createSignedPlaybackUrl } from "@/lib/signed-url";
 import {
   WaveformPlayer,
+  type WaveformPreviewRequest,
   type WaveformSeekRequest,
 } from "@/components/waveform-player";
 import {
   AnnotationPanel,
   fetchAnnotationsForFile,
   type AnnotationListItem,
+  type AnnotationPanelRange,
 } from "@/components/annotation-panel";
+import { roundAnnotationTime } from "@/lib/annotations";
 import {
   annotationRowFromPayload,
   mergeAnnotationRealtimeEvent,
@@ -43,11 +46,17 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<AnnotationListItem[]>([]);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [draftRange, setDraftRange] = useState<AnnotationPanelRange | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [seekRequest, setSeekRequest] = useState<WaveformSeekRequest | null>(
     null,
   );
+  const [previewRequest, setPreviewRequest] =
+    useState<WaveformPreviewRequest | null>(null);
   const playheadStampRef = useRef(0);
   const seekTokenRef = useRef(0);
+  const previewTokenRef = useRef(0);
 
   const loadFile = useCallback(async () => {
     const supabase = createClient();
@@ -219,14 +228,58 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
     setCurrentTime(seconds);
   }, []);
 
+  const startAddAnnotation = useCallback(() => {
+    setIsSelecting(true);
+    setEditingId(null);
+    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
+    setDraftRange({
+      start: initialStart,
+      end: null,
+      isRange: false,
+    });
+  }, [currentTime]);
+
+  const cancelSelection = useCallback(() => {
+    setIsSelecting(false);
+    setEditingId(null);
+    setDraftRange(null);
+  }, []);
+
+  const previewRange = useCallback((start: number, end: number) => {
+    previewTokenRef.current += 1;
+    setPreviewRequest({ start, end, token: previewTokenRef.current });
+  }, []);
+
+  const handleEditingChange = useCallback(
+    (id: string | null) => {
+      setEditingId(id);
+      if (id) {
+        setIsSelecting(false);
+        const note = annotations.find((a) => a.id === id);
+        if (note) {
+          const s = Number(note.start_seconds);
+          const hasRange = note.end_seconds != null && Number(note.end_seconds) > s;
+          setDraftRange({
+            start: s,
+            end: hasRange ? Number(note.end_seconds) : null,
+            isRange: hasRange,
+          });
+        }
+      } else {
+        setDraftRange(null);
+      }
+    },
+    [annotations],
+  );
+
   return (
-    <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
+    <div className="flex w-full flex-col gap-10">
+      <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-baseline gap-3">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             {file.filename}
           </h1>
-          <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400">
+          <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400 font-mono">
             {file.format}
           </span>
         </div>
@@ -253,18 +306,31 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           title={file.filename}
           annotations={annotations}
           seekRequest={seekRequest}
+          previewRequest={previewRequest}
+          isSelecting={isSelecting}
+          draftRange={draftRange}
+          onDraftRangeChange={setDraftRange}
+          editingAnnotationId={editingId}
           onTimeSelect={stampTime}
           onTimeUpdate={onTimeUpdate}
         />
       </div>
 
-      <div className="w-full lg:max-w-sm">
+      <div className="w-full pt-6 border-t border-zinc-200 dark:border-zinc-800">
         <AnnotationPanel
           audioFileId={file.id}
+          durationSeconds={file.duration_seconds}
           currentTime={currentTime}
+          isSelecting={isSelecting}
+          onStartAdd={startAddAnnotation}
+          onCancelAdd={cancelSelection}
+          selectedRange={draftRange}
+          onRangeChange={setDraftRange}
           annotations={annotations}
           onNeedRefresh={loadNotes}
           onJumpTo={jumpTo}
+          onEditingChange={handleEditingChange}
+          onPreviewRange={previewRange}
         />
       </div>
     </div>

@@ -125,7 +125,7 @@ Title: T5: R2 Worker waveform peaks
 
 ### T6 — Signed URL helper
 
-**Assignee:** Aziz (`feat/r2-t6-signed-url`) — **In progress**  
+**Assignee:** Aziz (`feat/r2-t6-signed-url`) — **Done** (merged #25)  
 **Blocked by:** nothing  
 **Blocks:** T7
 
@@ -157,7 +157,7 @@ Title: T7: R2 Waveform player + transport
 
 ### T8 — File page + library link
 
-**Assignee:** Aziz (`feat/r2-t8-file-page`) — **In progress**  
+**Assignee:** Aziz (`feat/r2-t8-file-page`) — **Done** (closed #23)  
 **Blocked by:** T7 (player component); T6 for live signed URLs; T5 for live peaks
 
 Route `/files/[id]`: load the `audio_files` row, signed URLs for audio + peaks, compose `WaveformPlayer`. FileList filename links here. Poll `waveform_peaks_path` like duration: show “Preparing waveform…” until peaks exist; player page can still open and wait.
