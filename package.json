@@ -9,6 +9,7 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:worker": "pnpm --filter worker dev",
+    "seed:demo": "pnpm --filter worker exec tsx src/seed-demo.ts",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint"
   }

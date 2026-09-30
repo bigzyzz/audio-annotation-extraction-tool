@@ -61,27 +61,56 @@ export async function loginAsDemoUser(
 
   // If user does not exist yet, auto-seed the demo account on demand
   if (error && /invalid login credentials/i.test(error.message)) {
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-      email: persona.email,
-      password: persona.password,
-      options: { data: { username: persona.username } },
-    });
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
-    if (signUpError) {
-      return {
-        error: `Could not auto-seed demo account: ${signUpError.message}`,
-      };
+    if (serviceRoleKey && supabaseUrl) {
+      const { createClient: createAdminClient } = await import(
+        "@supabase/supabase-js"
+      );
+      const adminClient = createAdminClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+
+      const { error: adminError } = await adminClient.auth.admin.createUser({
+        email: persona.email,
+        password: persona.password,
+        email_confirm: true,
+        user_metadata: { username: persona.username },
+      });
+
+      if (!adminError) {
+        const retry = await supabase.auth.signInWithPassword({
+          email: persona.email,
+          password: persona.password,
+        });
+        error = retry.error;
+      } else {
+        error = adminError;
+      }
+    } else {
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: persona.email,
+        password: persona.password,
+        options: { data: { username: persona.username } },
+      });
+
+      if (signUpError) {
+        return {
+          error: `Could not auto-seed demo account: ${signUpError.message}`,
+        };
+      }
+
+      if (signUpData.session) {
+        redirect("/");
+      }
+
+      const retry = await supabase.auth.signInWithPassword({
+        email: persona.email,
+        password: persona.password,
+      });
+      error = retry.error;
     }
-
-    if (signUpData.session) {
-      redirect("/");
-    }
-
-    const retry = await supabase.auth.signInWithPassword({
-      email: persona.email,
-      password: persona.password,
-    });
-    error = retry.error;
   }
 
   if (error) {
