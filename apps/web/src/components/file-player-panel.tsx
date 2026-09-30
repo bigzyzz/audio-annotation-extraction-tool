@@ -220,13 +220,13 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
-      <div className="flex min-w-0 flex-1 flex-col gap-6">
+    <div className="flex w-full flex-col gap-10">
+      <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-baseline gap-3">
           <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
             {file.filename}
           </h1>
-          <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400">
+          <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400 font-mono">
             {file.format}
           </span>
         </div>
@@ -258,9 +258,10 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
         />
       </div>
 
-      <div className="w-full lg:max-w-sm">
+      <div className="w-full pt-6 border-t border-zinc-200 dark:border-zinc-800">
         <AnnotationPanel
           audioFileId={file.id}
+          durationSeconds={file.duration_seconds}
           currentTime={currentTime}
           annotations={annotations}
           onNeedRefresh={loadNotes}

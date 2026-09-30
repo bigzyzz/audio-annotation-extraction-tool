@@ -28,8 +28,6 @@ export function annotationToRegionParams(
   const rawEnd =
     note.end_seconds == null ? start : roundAnnotationTime(Number(note.end_seconds));
   const end = rawEnd < start ? start : rawEnd;
-  const label = note.label?.trim();
-
   return {
     id: note.id,
     start,
@@ -37,8 +35,58 @@ export function annotationToRegionParams(
     drag: false,
     resize: false,
     color: end === start ? POINT_COLOR : RANGE_COLOR,
-    content: label || undefined,
   };
+}
+
+export type ActiveAnnotationCandidate = {
+  id: string;
+  start_seconds: number;
+  end_seconds: number | null;
+  label?: string | null;
+  comment?: string | null;
+  author_username?: string | null;
+  created_at?: string | null;
+  version?: number;
+};
+
+export const POINT_DISPLAY_DURATION = 2.5;
+
+/**
+ * Returns the active annotation at the given audio clock time during playback.
+ * If multiple annotations overlap at the current time, picks the most recent one.
+ */
+export function findActiveAnnotation<T extends ActiveAnnotationCandidate>(
+  annotations: T[],
+  currentTime: number | null | undefined,
+  isPlaying: boolean,
+): T | null {
+  if (!isPlaying || currentTime == null || !Number.isFinite(currentTime)) {
+    return null;
+  }
+
+  const activeCandidates = annotations.filter((note) => {
+    const start = Number(note.start_seconds);
+    const end =
+      note.end_seconds != null && Number(note.end_seconds) > start
+        ? Number(note.end_seconds)
+        : start + POINT_DISPLAY_DURATION;
+
+    return currentTime >= start && currentTime <= end;
+  });
+
+  if (activeCandidates.length === 0) return null;
+  if (activeCandidates.length === 1) return activeCandidates[0];
+
+  return [...activeCandidates].sort((a, b) => {
+    if (a.created_at && b.created_at) {
+      const timeDiff =
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (timeDiff !== 0) return timeDiff;
+    }
+    const versionDiff = (b.version ?? 0) - (a.version ?? 0);
+    if (versionDiff !== 0) return versionDiff;
+    return Number(b.start_seconds) - Number(a.start_seconds);
+  })[0];
 }
 
 export function clickRatioToAudioTime(

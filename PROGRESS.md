@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- Waveform & Annotation UI/UX Overhaul (R2, R3, R6): Increased waveform height to 160px with full-width layout; active annotation display banner rendered directly above the waveform during playback (prioritizes most recent overlapping note and clears outside sections); removed cluttered in-canvas text labels from waveform regions; repositioned annotation panel underneath the player with full-width responsive 2-column layout; added interactive dual sliders for start and end timestamp/range selection with playhead snap and duration readouts. Branch `feat/r2-r3-waveform-annotation-ui`.
 - Demo Auth Quick-Access: 1-click demo login & form fill for Alice and Bob in `apps/web/src/components/demo-auth-panel.tsx` and `loginAsDemoUser` in `apps/web/src/app/login/actions.ts`; auto-seeds demo accounts on demand to bypass SMTP confirmation delays during evaluations (US1, US2, RK11).
 - T16 (R9): Library compose + empty match. `AudioLibrary` composes `SearchField` + `searchAudioFiles` with `?q=` URL synchronization and background polling filter; `FileList` renders distinct empty-match message when no rows match query (US9, US14). Closes #39 and parent #10 (Epic R9 complete).
 - T15 (R9): Search field UI. Debounced (~250ms) search input in `apps/web/src/components/search-field.tsx` with clear button, Escape key reset, and isPending/disabled state (US9, US14). Closes #38.
@@ -84,6 +85,8 @@ Then:
 
 ## Decisions Log
 
+- Active annotation display (above waveform) tracks playback via `findActiveAnnotation`: range notes remain active between start and end, point notes remain active for 2.5s window during playback, overlapping notes resolve to the most recent note by `created_at` / `version` / timestamp. In-canvas region text labels are omitted to prevent visual clutter across peaks.
+- Dual sliders in `AnnotationPanel` manage section start/end with range toggle, playhead snap buttons, and synchronized number inputs for hundredth-of-a-second adjustments. Start and end values are constrained such that `start <= end`. Effective start value derives from playhead during playback when untouched, avoiding cascading `setState` calls in effects.
 - Demo personas (Alice and Bob) provide 1-click authentication and credential auto-fill on `/login`. Uses real Supabase Auth accounts created on-demand, bypassing confirmation delays and mitigating SMTP rate limits (RK11) during live evaluation and collaborative demos.
 - Search query helper (`apps/web/src/lib/search-query.ts`) escapes `\` before `%` and `_` to prevent double-escaping backslashes in ILIKE patterns. Empty/whitespace queries return `{ empty: true }` so upstream components preserve the full library rather than treating empty input as zero results.
 - File-page notes subscribe via Supabase `postgres_changes` on `public.annotations` filtered by `audio_file_id`. Client merge is in `apps/web/src/lib/annotation-realtime.ts`. Username is filled by a follow-up select (Realtime payloads have no join). Ephemeral cursor/playback broadcast stays out (R7). Replica identity FULL + publication membership live in `supabase/migrations/20260917100000_enable_annotations_realtime.sql`.
