@@ -25,6 +25,10 @@ export type WaveformPlayerProps = {
   title?: string;
   annotations?: (WaveformAnnotationMarker & Partial<ActiveAnnotationCandidate>)[];
   seekRequest?: WaveformSeekRequest | null;
+  selectedStart?: number;
+  selectedEnd?: number | null;
+  isRange?: boolean;
+  onRangeChange?: (range: { start: number; end: number; isRange: boolean }) => void;
   onTimeSelect?: (seconds: number) => void;
   onTimeUpdate?: (seconds: number) => void;
 };
@@ -35,6 +39,10 @@ export function WaveformPlayer({
   title,
   annotations = [],
   seekRequest = null,
+  selectedStart = 0,
+  selectedEnd = 5,
+  isRange = false,
+  onRangeChange,
   onTimeSelect,
   onTimeUpdate,
 }: WaveformPlayerProps) {
@@ -179,6 +187,10 @@ export function WaveformPlayer({
   }, [annotations, currentPlayheadTime, playing]);
 
   const totalDuration = trackDuration || peaks?.duration_seconds || 0;
+  const actualEnd =
+    selectedEnd != null
+      ? selectedEnd
+      : Math.min(totalDuration || 60, selectedStart + 5);
 
   if (!audioUrl || !peaks) {
     return (
@@ -268,11 +280,133 @@ export function WaveformPlayer({
         )}
       </div>
 
-      <div
-        ref={containerRef}
-        className="w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 shadow-inner dark:border-zinc-800 dark:bg-zinc-900"
-        aria-label={title ? `Waveform for ${title}` : "Audio waveform"}
-      />
+      <div className="w-full flex flex-col rounded-lg border border-zinc-200 bg-white shadow-sm overflow-hidden dark:border-zinc-800 dark:bg-zinc-950">
+        <div
+          ref={containerRef}
+          className="w-full bg-zinc-50 shadow-inner dark:bg-zinc-900"
+          aria-label={title ? `Waveform for ${title}` : "Audio waveform"}
+        />
+
+        {/* Interactive Timeline Range Slider (directly under the waveform) */}
+        <div className="w-full flex flex-col gap-2.5 border-t border-zinc-200 bg-zinc-50/90 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/60">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 text-[11px]">
+              Timeline Section
+            </span>
+            <span className="rounded bg-zinc-200/90 px-2 py-0.5 font-mono font-medium text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100">
+              {formatDurationSeconds(selectedStart)}
+              {isRange
+                ? ` – ${formatDurationSeconds(actualEnd)} (${(actualEnd - selectedStart).toFixed(2)}s)`
+                : " (Point marker)"}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 cursor-pointer font-medium text-zinc-700 dark:text-zinc-300">
+              <input
+                type="checkbox"
+                checked={isRange}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  onRangeChange?.({
+                    start: selectedStart,
+                    end: checked ? Math.max(selectedStart + 2, actualEnd) : actualEnd,
+                    isRange: checked,
+                  });
+                }}
+                className="rounded border-zinc-300 accent-black dark:border-zinc-700 dark:accent-zinc-50"
+              />
+              <span>Highlight range</span>
+            </label>
+
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={() => {
+                onRangeChange?.({
+                  start: currentPlayheadTime,
+                  end: isRange && currentPlayheadTime > actualEnd ? currentPlayheadTime + 2 : actualEnd,
+                  isRange,
+                });
+              }}
+              className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
+            >
+              Snap start to playhead
+            </button>
+
+            {isRange ? (
+              <button
+                type="button"
+                disabled={!ready}
+                onClick={() => {
+                  onRangeChange?.({
+                    start: selectedStart,
+                    end: Math.max(selectedStart, currentPlayheadTime),
+                    isRange: true,
+                  });
+                }}
+                className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
+              >
+                Snap end to playhead
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Start Slider directly under waveform */}
+        <div className="flex items-center gap-3">
+          <span className="w-12 text-xs font-medium text-zinc-500 dark:text-zinc-400">Start</span>
+          <input
+            type="range"
+            min={0}
+            max={totalDuration || 60}
+            step={0.01}
+            value={selectedStart}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              onRangeChange?.({
+                start: v,
+                end: isRange && v > actualEnd ? v : actualEnd,
+                isRange,
+              });
+            }}
+            className="flex-1 accent-black dark:accent-zinc-50"
+            aria-label="Section start slider"
+          />
+          <span className="w-16 text-right font-mono text-xs text-zinc-700 dark:text-zinc-300">
+            {formatDurationSeconds(selectedStart)}
+          </span>
+        </div>
+
+        {/* End Slider directly under waveform */}
+        {isRange ? (
+          <div className="flex items-center gap-3">
+            <span className="w-12 text-xs font-medium text-zinc-500 dark:text-zinc-400">End</span>
+            <input
+              type="range"
+              min={selectedStart}
+              max={totalDuration || 60}
+              step={0.01}
+              value={actualEnd}
+              onChange={(e) => {
+                const v = Math.max(selectedStart, Number(e.target.value));
+                onRangeChange?.({
+                  start: selectedStart,
+                  end: v,
+                  isRange: true,
+                });
+              }}
+              className="flex-1 accent-black dark:accent-zinc-50"
+              aria-label="Section end slider"
+            />
+            <span className="w-16 text-right font-mono text-xs text-zinc-700 dark:text-zinc-300">
+              {formatDurationSeconds(actualEnd)}
+            </span>
+          </div>
+        ) : null}
+        </div>
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
         <div className="flex items-center gap-3">

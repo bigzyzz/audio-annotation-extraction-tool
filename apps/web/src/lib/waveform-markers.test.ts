@@ -65,7 +65,7 @@ describe("findActiveAnnotation", () => {
     },
     {
       id: "note-3",
-      start_seconds: 3.0,
+      start_seconds: 2.3,
       end_seconds: 6.0,
       label: "Guitar Riff",
       comment: "Overlap note",
@@ -79,23 +79,42 @@ describe("findActiveAnnotation", () => {
     assert.equal(findActiveAnnotation(notes, 0.5, true), null);
   });
 
-  it("finds a single active range annotation", () => {
-    const active = findActiveAnnotation(notes, 2.2, true);
-    assert.equal(active?.id, "note-1");
+  it("finds an active annotation within its 1.0s display window and clears afterwards", () => {
+    // note-1 starts at 2.0, active until 3.0
+    const activeAtStart = findActiveAnnotation([notes[0]], 2.0, true);
+    assert.equal(activeAtStart?.id, "note-1");
+
+    const activeMid = findActiveAnnotation([notes[0]], 2.6, true);
+    assert.equal(activeMid?.id, "note-1");
+
+    const clearedAfter1Sec = findActiveAnnotation([notes[0]], 3.0, true);
+    assert.equal(clearedAfter1Sec, null);
+
+    const clearedPast = findActiveAnnotation([notes[0]], 3.2, true);
+    assert.equal(clearedPast, null);
   });
 
-  it("finds a point annotation within its 2.5s display window", () => {
-    // note-2 starts at 3.5, window lasts up to 6.0 (3.5 + 2.5)
-    const active = findActiveAnnotation([notes[1]], 4.0, true);
-    assert.equal(active?.id, "note-2");
+  it("allows two annotations within 2-3 seconds to both appear in turn without masking", () => {
+    // Note 1 starts at 2.0s (active 2.0s -> 3.0s)
+    // Note 2 starts at 3.5s (active 3.5s -> 4.5s)
+    const pair = [notes[0], notes[1]];
 
-    const pastWindow = findActiveAnnotation([notes[1]], 6.1, true);
-    assert.equal(pastWindow, null);
+    // At 2.5s, Note 1 is visible
+    assert.equal(findActiveAnnotation(pair, 2.5, true)?.id, "note-1");
+
+    // At 3.2s, Note 1 has completed its 1.0s window, so banner is clear
+    assert.equal(findActiveAnnotation(pair, 3.2, true), null);
+
+    // At 3.7s, Note 2 is visible
+    assert.equal(findActiveAnnotation(pair, 3.7, true)?.id, "note-2");
+
+    // At 4.6s, Note 2 has completed its 1.0s window
+    assert.equal(findActiveAnnotation(pair, 4.6, true), null);
   });
 
-  it("picks the most recent annotation when multiple overlap at current time", () => {
-    // At t = 3.6s, note-1 (created 10:00), note-2 (created 10:05), and note-3 (created 10:10) all overlap
-    const active = findActiveAnnotation(notes, 3.6, true);
+  it("picks the most recent annotation when multiple overlap within the same 1.0s window", () => {
+    // At t = 2.4s, note-1 (starts 2.0, created 10:00) and note-3 (starts 2.3, created 10:10) both overlap
+    const active = findActiveAnnotation([notes[0], notes[2]], 2.4, true);
     assert.equal(active?.id, "note-3");
     assert.equal(active?.label, "Guitar Riff");
   });

@@ -16,10 +16,18 @@ export type AnnotationListItem = Annotation & {
   author_username: string | null;
 };
 
+export type AnnotationPanelRange = {
+  start: number;
+  end: number | null;
+  isRange: boolean;
+};
+
 export type AnnotationPanelProps = {
   audioFileId: string;
   durationSeconds?: number | null;
   currentTime?: number | null;
+  selectedRange?: AnnotationPanelRange;
+  onRangeChange?: (range: AnnotationPanelRange) => void;
   /** Controlled list. When omitted, the panel loads notes itself. */
   annotations?: AnnotationListItem[];
   onNeedRefresh?: () => void;
@@ -89,6 +97,8 @@ export function AnnotationPanel({
   audioFileId,
   durationSeconds = null,
   currentTime = null,
+  selectedRange,
+  onRangeChange,
   annotations: controlledAnnotations,
   onNeedRefresh,
   onJumpTo,
@@ -102,12 +112,30 @@ export function AnnotationPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const [isRange, setIsRange] = useState(false);
-  const [startSec, setStartSec] = useState(0);
-  const [endSec, setEndSec] = useState(5);
+  const [localRange, setLocalRange] = useState<AnnotationPanelRange>(() => ({
+    start: currentTime != null ? roundAnnotationTime(currentTime) : 0,
+    end: currentTime != null ? roundAnnotationTime(currentTime) + 5 : 5,
+    isRange: false,
+  }));
+
+  const range = selectedRange ?? localRange;
+  const updateRange = useCallback(
+    (updater: AnnotationPanelRange | ((prev: AnnotationPanelRange) => AnnotationPanelRange)) => {
+      if (onRangeChange) {
+        if (typeof updater === "function") {
+          onRangeChange(updater(range));
+        } else {
+          onRangeChange(updater);
+        }
+      } else {
+        setLocalRange(updater);
+      }
+    },
+    [onRangeChange, range],
+  );
+
   const [label, setLabel] = useState("");
   const [comment, setComment] = useState("");
-  const [startDirty, setStartDirty] = useState(false);
 
   const annotations = controlled ? controlledAnnotations : loaded;
 
@@ -121,12 +149,10 @@ export function AnnotationPanel({
     return Math.ceil(maxNote);
   }, [durationSeconds, annotations]);
 
-  const effectiveStart =
-    !startDirty && editingId == null && currentTime != null
-      ? roundAnnotationTime(currentTime)
-      : startSec;
-
-  const effectiveEnd = isRange ? Math.max(effectiveStart, endSec) : effectiveStart;
+  const effectiveStart = range.start;
+  const effectiveEnd = range.isRange
+    ? Math.max(effectiveStart, range.end ?? effectiveStart + 5)
+    : effectiveStart;
 
   const refresh = useCallback(async () => {
     if (controlled) {
@@ -177,11 +203,12 @@ export function AnnotationPanel({
   function resetForm() {
     setEditingId(null);
     setPendingDeleteId(null);
-    setStartDirty(false);
     const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
-    setStartSec(initialStart);
-    setIsRange(false);
-    setEndSec(Math.min(maxDuration, initialStart + 5));
+    updateRange({
+      start: initialStart,
+      end: Math.min(maxDuration, initialStart + 5),
+      isRange: false,
+    });
     setLabel("");
     setComment("");
     setError(null);
@@ -190,17 +217,15 @@ export function AnnotationPanel({
   function beginEdit(note: AnnotationListItem) {
     setEditingId(note.id);
     setPendingDeleteId(null);
-    setStartDirty(true);
     const s = asSeconds(note.start_seconds);
-    setStartSec(s);
+    const hasRange = note.end_seconds != null && note.end_seconds > note.start_seconds;
+    const e = hasRange ? asSeconds(note.end_seconds) : Math.min(maxDuration, s + 5);
 
-    if (note.end_seconds != null && note.end_seconds > note.start_seconds) {
-      setIsRange(true);
-      setEndSec(asSeconds(note.end_seconds));
-    } else {
-      setIsRange(false);
-      setEndSec(Math.min(maxDuration, s + 5));
-    }
+    updateRange({
+      start: s,
+      end: e,
+      isRange: hasRange,
+    });
 
     setLabel(note.label ?? "");
     setComment(note.comment ?? "");
@@ -212,7 +237,7 @@ export function AnnotationPanel({
     setError(null);
 
     const startSeconds = roundAnnotationTime(effectiveStart);
-    const endSeconds = isRange ? roundAnnotationTime(effectiveEnd) : null;
+    const endSeconds = range.isRange ? roundAnnotationTime(effectiveEnd) : null;
 
     if (endSeconds != null && endSeconds < startSeconds) {
       setError("End time cannot be earlier than start time.");
@@ -277,79 +302,36 @@ export function AnnotationPanel({
           Notes & Annotations ({annotations.length})
         </h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Use the sliders to pick a timestamp or highlighted region, then add labels and comments.
+          Adjust the timeline section slider directly under the waveform, then add labels and comments.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
-        {/* Left Column: Form with Dual Sliders */}
+        {/* Left Column: Form with Target Timestamp Info & Fine-Tuning */}
         <div className="lg:col-span-5 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
             {editing ? "Edit Note" : "Add Note"}
           </h3>
 
           <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
-            {/* Dual Slider / Section Controls */}
-            <div className="flex flex-col gap-4 rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 dark:border-zinc-800 dark:bg-zinc-900/40">
+            {/* Timeline Section Info & Fine-Tuning */}
+            <div className="flex flex-col gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50/70 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/40">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                  Time Selection
+                  Target Timestamp
                 </span>
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  <input
-                    type="checkbox"
-                    checked={isRange}
-                    disabled={busy}
-                    onChange={(e) => {
-                      setIsRange(e.target.checked);
-                      if (e.target.checked && endSec <= startSec) {
-                        setEndSec(Math.min(maxDuration, startSec + 3));
-                      }
-                    }}
-                    className="rounded border-zinc-300 accent-black dark:border-zinc-700 dark:accent-zinc-50"
-                  />
-                  <span>Highlight a range / section</span>
-                </label>
+                <span className="rounded bg-zinc-200/80 px-2 py-0.5 font-mono text-xs font-medium text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200">
+                  {range.isRange
+                    ? `${formatDurationSeconds(effectiveStart)} – ${formatDurationSeconds(effectiveEnd)} (${(effectiveEnd - effectiveStart).toFixed(2)}s)`
+                    : `${formatDurationSeconds(effectiveStart)} (${effectiveStart.toFixed(2)}s)`}
+                </span>
               </div>
-
-              {/* Start Slider & Input */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300">
-                  <span className="font-medium">
-                    Start: <span className="font-mono">{formatDurationSeconds(effectiveStart)}</span> ({effectiveStart.toFixed(2)}s)
-                  </span>
-                  <button
-                    type="button"
-                    disabled={busy || currentTime == null}
-                    onClick={() => {
-                      if (currentTime == null) return;
-                      setStartDirty(true);
-                      const t = roundAnnotationTime(currentTime);
-                      setStartSec(t);
-                      if (isRange && t > effectiveEnd) setEndSec(t);
-                    }}
-                    className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
-                  >
-                    Snap to playhead ({currentTime != null ? `${currentTime.toFixed(2)}s` : "0s"})
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min={0}
-                    max={maxDuration}
-                    step={0.01}
-                    value={effectiveStart}
-                    disabled={busy}
-                    onChange={(e) => {
-                      setStartDirty(true);
-                      const v = Number(e.target.value);
-                      setStartSec(v);
-                      if (isRange && v > effectiveEnd) setEndSec(v);
-                    }}
-                    className="flex-1 accent-black dark:accent-zinc-50"
-                    aria-label="Start timestamp slider"
-                  />
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Adjust section sliders directly beneath the waveform, or fine-tune exact seconds below:
+              </p>
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  <span>Start (s):</span>
                   <input
                     type="number"
                     min={0}
@@ -358,52 +340,20 @@ export function AnnotationPanel({
                     value={effectiveStart.toFixed(2)}
                     disabled={busy}
                     onChange={(e) => {
-                      setStartDirty(true);
                       const v = Math.max(0, Math.min(maxDuration, Number(e.target.value) || 0));
-                      setStartSec(v);
-                      if (isRange && v > effectiveEnd) setEndSec(v);
+                      updateRange((prev) => ({
+                        ...prev,
+                        start: v,
+                        end: prev.isRange && prev.end != null && prev.end < v ? v : prev.end,
+                      }));
                     }}
-                    className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                    className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1 font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                     aria-label="Start timestamp in seconds"
                   />
-                </div>
-              </div>
-
-              {/* End Slider & Input */}
-              {isRange ? (
-                <div className="flex flex-col gap-1.5 pt-3 border-t border-zinc-200/80 dark:border-zinc-800/80">
-                  <div className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300">
-                    <span className="font-medium">
-                      End: <span className="font-mono">{formatDurationSeconds(effectiveEnd)}</span> ({effectiveEnd.toFixed(2)}s)
-                    </span>
-                    <button
-                      type="button"
-                      disabled={busy || currentTime == null}
-                      onClick={() => {
-                        if (currentTime == null) return;
-                        const t = Math.max(effectiveStart, roundAnnotationTime(currentTime));
-                        setEndSec(t);
-                      }}
-                      className="text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400 disabled:opacity-50"
-                    >
-                      Snap to playhead ({currentTime != null ? `${currentTime.toFixed(2)}s` : "0s"})
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={maxDuration}
-                      step={0.01}
-                      value={effectiveEnd}
-                      disabled={busy}
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        setEndSec(Math.max(effectiveStart, v));
-                      }}
-                      className="flex-1 accent-black dark:accent-zinc-50"
-                      aria-label="End timestamp slider"
-                    />
+                </label>
+                {range.isRange ? (
+                  <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                    <span>End (s):</span>
                     <input
                       type="number"
                       min={effectiveStart}
@@ -413,21 +363,17 @@ export function AnnotationPanel({
                       disabled={busy}
                       onChange={(e) => {
                         const v = Math.max(effectiveStart, Math.min(maxDuration, Number(e.target.value) || 0));
-                        setEndSec(v);
+                        updateRange((prev) => ({
+                          ...prev,
+                          end: v,
+                        }));
                       }}
-                      className="w-20 rounded-md border border-zinc-300 bg-white px-2 py-1 text-right font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                      className="w-24 rounded-md border border-zinc-300 bg-white px-2 py-1 font-mono text-xs text-black dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
                       aria-label="End timestamp in seconds"
                     />
-                  </div>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
-                    Section span: {(effectiveEnd - effectiveStart).toFixed(2)} seconds
-                  </p>
-                </div>
-              ) : (
-                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Point marker at <span className="font-mono">{formatDurationSeconds(effectiveStart)}</span>. Check the box above to mark a duration range.
-                </p>
-              )}
+                  </label>
+                ) : null}
+              </div>
             </div>
 
             <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">

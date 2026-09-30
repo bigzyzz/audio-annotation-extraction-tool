@@ -12,7 +12,9 @@ import {
   AnnotationPanel,
   fetchAnnotationsForFile,
   type AnnotationListItem,
+  type AnnotationPanelRange,
 } from "@/components/annotation-panel";
+import { roundAnnotationTime } from "@/lib/annotations";
 import {
   annotationRowFromPayload,
   mergeAnnotationRealtimeEvent,
@@ -43,6 +45,11 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<AnnotationListItem[]>([]);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
+  const [range, setRange] = useState<AnnotationPanelRange>({
+    start: 0,
+    end: 5,
+    isRange: false,
+  });
   const [seekRequest, setSeekRequest] = useState<WaveformSeekRequest | null>(
     null,
   );
@@ -203,13 +210,25 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
   }, [initialFile.id, loadNotes]);
 
   const stampTime = useCallback((seconds: number) => {
+    const rounded = roundAnnotationTime(seconds);
     setCurrentTime(seconds);
+    setRange((prev) => ({
+      ...prev,
+      start: rounded,
+      end: prev.isRange ? (prev.end != null && prev.end > rounded ? prev.end : rounded + 3) : prev.end,
+    }));
   }, []);
 
   const jumpTo = useCallback((seconds: number) => {
+    const rounded = roundAnnotationTime(seconds);
     setCurrentTime(seconds);
     seekTokenRef.current += 1;
     setSeekRequest({ seconds, token: seekTokenRef.current });
+    setRange((prev) => ({
+      ...prev,
+      start: rounded,
+      end: prev.isRange ? (prev.end != null && prev.end > rounded ? prev.end : rounded + 3) : prev.end,
+    }));
   }, []);
 
   const onTimeUpdate = useCallback((seconds: number) => {
@@ -253,6 +272,10 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           title={file.filename}
           annotations={annotations}
           seekRequest={seekRequest}
+          selectedStart={range.start}
+          selectedEnd={range.end}
+          isRange={range.isRange}
+          onRangeChange={setRange}
           onTimeSelect={stampTime}
           onTimeUpdate={onTimeUpdate}
         />
@@ -263,6 +286,8 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           audioFileId={file.id}
           durationSeconds={file.duration_seconds}
           currentTime={currentTime}
+          selectedRange={range}
+          onRangeChange={setRange}
           annotations={annotations}
           onNeedRefresh={loadNotes}
           onJumpTo={jumpTo}

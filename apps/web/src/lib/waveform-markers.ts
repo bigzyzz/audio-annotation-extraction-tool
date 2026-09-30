@@ -49,11 +49,12 @@ export type ActiveAnnotationCandidate = {
   version?: number;
 };
 
-export const POINT_DISPLAY_DURATION = 2.5;
+export const LABEL_DISPLAY_DURATION = 1.0;
 
 /**
  * Returns the active annotation at the given audio clock time during playback.
- * If multiple annotations overlap at the current time, picks the most recent one.
+ * Every annotation label appears for exactly 1.0s after the start of the label.
+ * If multiple annotations overlap within the same 1.0s window, picks the most recent one.
  */
 export function findActiveAnnotation<T extends ActiveAnnotationCandidate>(
   annotations: T[],
@@ -66,12 +67,9 @@ export function findActiveAnnotation<T extends ActiveAnnotationCandidate>(
 
   const activeCandidates = annotations.filter((note) => {
     const start = Number(note.start_seconds);
-    const end =
-      note.end_seconds != null && Number(note.end_seconds) > start
-        ? Number(note.end_seconds)
-        : start + POINT_DISPLAY_DURATION;
+    const end = start + LABEL_DISPLAY_DURATION;
 
-    return currentTime >= start && currentTime <= end;
+    return currentTime >= start && currentTime < end;
   });
 
   if (activeCandidates.length === 0) return null;
