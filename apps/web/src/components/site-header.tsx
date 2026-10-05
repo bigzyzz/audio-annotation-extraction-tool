@@ -30,7 +30,16 @@ export async function SiteHeader() {
 
       {user ? (
         <div className="flex items-center gap-4 text-sm">
-          <Link href="/upload" className="font-medium text-black dark:text-zinc-50">
+          <Link
+            href="/"
+            className="font-medium text-zinc-600 transition-colors hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
+            Library
+          </Link>
+          <Link
+            href="/upload"
+            className="font-medium text-zinc-600 transition-colors hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
+          >
             Upload
           </Link>
           <span className="text-zinc-600 dark:text-zinc-400">{username}</span>

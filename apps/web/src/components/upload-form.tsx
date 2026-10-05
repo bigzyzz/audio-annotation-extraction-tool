@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { validateAudioFile } from "@/lib/audio-validate";
@@ -168,12 +169,18 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
       )}
 
       {success && (
-        <p
+        <div
           role="status"
-          className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+          className="flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
         >
-          {success}
-        </p>
+          <span>{success}</span>
+          <Link
+            href="/"
+            className="font-medium underline hover:text-emerald-950 dark:hover:text-emerald-100"
+          >
+            View in library →
+          </Link>
+        </div>
       )}
 
       {statusLabel(status) && (
