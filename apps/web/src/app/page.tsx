@@ -42,7 +42,7 @@ export default async function Home({ searchParams }: HomeProps) {
               Welcome back, {username}
             </h1>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              Upload a track or open one from the library.
+              Manage, search, and annotate your audio tracks.
             </p>
           </div>
           <AudioLibrary initialFiles={files} initialQuery={initialQuery} />

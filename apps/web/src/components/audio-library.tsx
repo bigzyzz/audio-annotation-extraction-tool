@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { UploadForm } from "@/components/upload-form";
 import { FileList, type FileListItem } from "@/components/file-list";
 import { SearchField } from "@/components/search-field";
 import { searchAudioFiles } from "@/lib/search-audio";
@@ -85,30 +85,39 @@ export function AudioLibrary({
   );
 
   return (
-    <div className="flex w-full flex-col gap-10">
-      <section className="flex flex-col gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-black dark:text-zinc-50">
-            Upload a track
-          </h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            MP3 or WAV only. Duration fills in after the worker probes the file.
-          </p>
-        </div>
-        <UploadForm onUploaded={() => void load(queryRef.current)} />
-      </section>
-
+    <div className="flex w-full flex-col gap-6">
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-xl font-semibold text-black dark:text-zinc-50">
             Library
           </h2>
-          <div className="w-full sm:max-w-xs">
-            <SearchField
-              onSearch={handleSearch}
-              defaultValue={query}
-              isPending={isSearching}
-            />
+          <div className="flex w-full items-center gap-3 sm:w-auto">
+            <div className="w-full sm:w-64">
+              <SearchField
+                onSearch={handleSearch}
+                defaultValue={query}
+                isPending={isSearching}
+              />
+            </div>
+            <Link
+              href="/upload"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-foreground px-3.5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Upload track
+            </Link>
           </div>
         </div>
         <FileList files={files} error={error} searchQuery={query} />
