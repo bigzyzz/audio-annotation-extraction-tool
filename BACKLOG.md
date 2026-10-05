@@ -330,9 +330,98 @@ Title: T16: R9 Library compose + empty match
 
 ---
 
+## Epic: R4 / R8 Audio Extraction (US10, US11, US12)
+
+Parent. Close when T17–T20 are Done. RK3 / RK8 → Mitigated when worker pipeline lands. Issues: T17, T18, T19, T20.
+
+**R4 / R8 contract (all four agree before code):**
+- Storage: bucket `audio`
+  - Extracted audio: `extractions/{audio_file_id}/{job_id}.{format}` (derived file; never overwrite original)
+  - Annotation metadata: `extractions/{audio_file_id}/{job_id}.annotations.json`
+- Lossless cutting:
+  - WAV: exact sample-accurate cut (`target_sample = target_time * sample_rate`)
+  - MP3: frame-boundary stream copy (`-c copy`) without re-encoding (preserves original quality/bitrate)
+- DB Table: `public.extraction_jobs`
+  - Columns: `id`, `audio_file_id`, `requested_by`, `start_seconds`, `end_seconds`, `status`, `output_path`, `error_message`
+  - Status flow: `pending` -> `processing` -> `completed` / `failed`
+- Worker service-role client polls `pending` jobs, transitions status, processes cuts, uploads to Storage.
+
+### T17 — Worker Lossless Cutting Engine
+
+**Assignee:** (`feat/r4-t17-worker-cutting`)  
+**Blocked by:** nothing (local audio file fixtures)  
+**Blocks:** T18  
+
+Pure audio cutting module + tests in `apps/worker/src/extract.ts`. Handles sample-accurate WAV extraction and frame-boundary MP3 stream copy (`-c copy`) without lossy re-encoding (req R8). Generates exportable annotation metadata JSON for notes in the selected timestamp window (req R4).
+
+**Touch:** `apps/worker/src/extract.ts` + tests.
+
+**Done when:** given audio file path and start/end seconds, produces lossless cut segment and annotation metadata JSON without transcoding or quality loss.
+
+```
+Title: T17: R4/R8 Worker Lossless Cutting Engine
+```
+
+### T18 — Worker Extraction Job Runner & Storage Pipeline
+
+**Assignee:** (`feat/r4-t18-worker-pipeline`)  
+**Blocked by:** T17 (cutting engine)  
+**Blocks:** T20 (live pipeline)  
+
+Worker queue runner: poll `extraction_jobs` where `status = 'pending'`, atomically transition to `processing`. Download source audio from Storage, query overlapping `annotations`, call T17 engine to cut audio and build metadata JSON, upload both files to `extractions/{audio_file_id}/{job_id}.*`, and update job row with `output_path` and `status = 'completed'` (or `failed` with `error_message`).
+
+**Touch:** `apps/worker/src/job-runner.ts`, `apps/worker/src/index.ts`.
+
+**Done when:** inserting a `pending` row into `extraction_jobs` triggers the worker to download, cut, upload result, and mark row `completed` with valid `output_path`.
+
+```
+Title: T18: R4/R8 Worker Extraction Job Runner & Storage Pipeline
+```
+
+### T19 — Extraction Client & Signed Download Helpers
+
+**Assignee:** (`feat/r4-t19-extraction-client`)  
+**Blocked by:** nothing  
+**Blocks:** T20  
+
+Web client API helpers and validation in `apps/web/src/lib/extraction.ts`:
+- `requestExtractionJob(supabase, { audioFileId, startSeconds, endSeconds })`: validates timestamps (`0 <= start < end <= duration`), inserts `extraction_jobs` row.
+- `getExtractionJobs(supabase, audioFileId)`: lists user's extraction jobs for this file.
+- `createExtractionDownloadUrls(supabase, outputPath)`: signs Storage download URLs for extracted audio and annotation JSON.
+
+**Touch:** `apps/web/src/lib/extraction.ts` + tests.
+
+**Done when:** unit tests verify range validation, database insert payload, and signed download URL resolution.
+
+```
+Title: T19: R4 Extraction Client & Signed Download Helpers
+```
+
+### T20 — Extraction UI, Region Preview & Download Panel
+
+**Assignee:** (`feat/r4-t20-extraction-ui`)  
+**Blocked by:** T19 (client helper); T18 for live worker pipeline (stub completed row to start)  
+**Blocks:** nothing (closes Epic R4/R8)  
+
+Extraction interface on `/files/[id]`:
+- WaveSurfer region integration: "Extract Selection" picks active timeline region endpoints (US10).
+- "▶ Preview Cut" plays the selected slice before submitting (US11).
+- Submit extraction job via T19 with loading indicator and disabled submit while pending (US14).
+- Polls/listens for job completion, displaying status (`pending` -> `processing` -> `completed` / `failed`).
+- Provides download buttons for the extracted audio segment and annotation metadata JSON (US12).
+
+**Touch:** `apps/web/src/components/extraction-panel.tsx`, `apps/web/src/components/file-player-panel.tsx`, `apps/web/src/app/files/[id]/page.tsx`.
+
+**Done when:** signed-in user chooses a timeline slice on `/files/[id]`, previews playback, submits extract job, and downloads the finished lossless audio cut and annotation JSON (US10, US11, US12).
+
+```
+Title: T20: R4/R8 Extraction UI, Region Preview & Download Panel
+```
+
+---
+
 ## Later (not split yet)
 
-- R4/R8: extract UI + worker pipeline (US10–US12)
 - R6: Nielsen pass (US14, after UI exists)
 - R7: 5-user / <2s check (US13, after R3)
 
@@ -340,4 +429,4 @@ Title: T16: R9 Library compose + empty match
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. Add them to the GitHub Project **Todo** column. One person each. T13 merge first for the query helper.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 ready to paste under parent Epic R4/R8. Add them to the GitHub Project **Todo** column. One person each. T17 merge first for worker engine, T19 for web client.
