@@ -1,4 +1,22 @@
 import ffmpeg from "fluent-ffmpeg";
+import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
+import ffprobeInstaller from "@ffprobe-installer/ffprobe";
+
+export function getFfmpegBinaryPath(): string {
+  return process.env.FFMPEG_PATH || ffmpegInstaller?.path || "ffmpeg";
+}
+
+export function getFfprobeBinaryPath(): string {
+  return process.env.FFPROBE_PATH || ffprobeInstaller?.path || "ffprobe";
+}
+
+// Configure fluent-ffmpeg with binary paths
+if (getFfmpegBinaryPath()) {
+  ffmpeg.setFfmpegPath(getFfmpegBinaryPath());
+}
+if (getFfprobeBinaryPath()) {
+  ffmpeg.setFfprobePath(getFfprobeBinaryPath());
+}
 
 export interface AudioMetadata {
   durationSeconds: number;

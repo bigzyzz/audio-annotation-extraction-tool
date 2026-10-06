@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { WaveformPeaksDocument } from "@audio-tool/shared-types";
+import { getFfmpegBinaryPath } from "./ffmpeg.js";
 
 export const PEAKS_PER_SECOND = 75;
 export const DECODE_SAMPLE_RATE = 8000;
@@ -48,7 +49,7 @@ function decodeMonoF32(
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const proc = spawn(
-      "ffmpeg",
+      getFfmpegBinaryPath(),
       [
         "-hide_banner",
         "-loglevel",
