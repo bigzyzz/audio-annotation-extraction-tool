@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test src/lib/waveform-peaks.test.ts"
+    "test": "tsx --test src/lib/waveform-peaks.test.ts src/extract.test.ts"
   },
   "dependencies": {
     "@audio-tool/shared-types": "workspace:*",
