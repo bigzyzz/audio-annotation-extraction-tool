@@ -364,7 +364,7 @@ Title: T17: R4/R8 Worker Lossless Cutting Engine
 
 ### T18 — Worker Extraction Job Runner & Storage Pipeline
 
-**Assignee:** (`feat/r4-t18-worker-pipeline`) — #50  
+**Assignee:** (`feat/r4-t18-worker-pipeline`) — #50 — **Done** (runner + storage pipeline + tests)  
 **Blocked by:** T17 (cutting engine)  
 **Blocks:** T20 (live pipeline)  
 
