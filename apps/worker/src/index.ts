@@ -1,37 +1,14 @@
 import "dotenv/config";
-import type { ExtractionJob } from "@audio-tool/shared-types";
-import { supabase } from "./lib/supabase.js";
 import { probePendingAudioFiles } from "./probe.js";
 import { generatePendingWaveformPeaks } from "./peaks.js";
+import { processPendingExtractionJobs } from "./job-runner.js";
 
 const POLL_INTERVAL_MS = Number(process.env.JOB_POLL_INTERVAL_MS ?? 2000);
-
-async function fetchPendingJobs(): Promise<ExtractionJob[]> {
-  const { data, error } = await supabase
-    .from("extraction_jobs")
-    .select("*")
-    .eq("status", "pending")
-    .limit(10);
-
-  if (error) throw error;
-
-  return data ?? [];
-}
-
-async function processJob(job: ExtractionJob): Promise<void> {
-  // Real pipeline (download from Storage, ffmpeg cut, upload result, update
-  // status) lands with the extraction feature — this is scaffolding only.
-  console.log(`[worker] would process job ${job.id}`);
-}
 
 async function pollOnce(): Promise<void> {
   await probePendingAudioFiles();
   await generatePendingWaveformPeaks();
-
-  const jobs = await fetchPendingJobs();
-  for (const job of jobs) {
-    await processJob(job);
-  }
+  await processPendingExtractionJobs();
 }
 
 async function main(): Promise<void> {
