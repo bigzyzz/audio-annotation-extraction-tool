@@ -332,7 +332,7 @@ Title: T16: R9 Library compose + empty match
 
 ## Epic: R4 / R8 Audio Extraction (US10, US11, US12)
 
-Parent. Close when T17–T20 are Done. RK3 / RK8 → Mitigated when worker pipeline lands. Issues: T17, T18, T19, T20.
+Parent: GitHub #7. Close #7 when T17–T20 are Done. RK3 / RK8 → Mitigated when worker pipeline lands. Issues: T17 #49, T18 #50, T19 #51, T20 #52.
 
 **R4 / R8 contract (all four agree before code):**
 - Storage: bucket `audio`
@@ -348,7 +348,7 @@ Parent. Close when T17–T20 are Done. RK3 / RK8 → Mitigated when worker pipel
 
 ### T17 — Worker Lossless Cutting Engine
 
-**Assignee:** (`feat/r4-t17-worker-cutting`)  
+**Assignee:** (`feat/r4-t17-worker-cutting`) — #49  
 **Blocked by:** nothing (local audio file fixtures)  
 **Blocks:** T18  
 
@@ -364,7 +364,7 @@ Title: T17: R4/R8 Worker Lossless Cutting Engine
 
 ### T18 — Worker Extraction Job Runner & Storage Pipeline
 
-**Assignee:** (`feat/r4-t18-worker-pipeline`)  
+**Assignee:** (`feat/r4-t18-worker-pipeline`) — #50  
 **Blocked by:** T17 (cutting engine)  
 **Blocks:** T20 (live pipeline)  
 
@@ -380,7 +380,7 @@ Title: T18: R4/R8 Worker Extraction Job Runner & Storage Pipeline
 
 ### T19 — Extraction Client & Signed Download Helpers
 
-**Assignee:** (`feat/r4-t19-extraction-client`)  
+**Assignee:** (`feat/r4-t19-extraction-client`) — #51  
 **Blocked by:** nothing  
 **Blocks:** T20  
 
@@ -399,7 +399,7 @@ Title: T19: R4 Extraction Client & Signed Download Helpers
 
 ### T20 — Extraction UI, Region Preview & Download Panel
 
-**Assignee:** (`feat/r4-t20-extraction-ui`)  
+**Assignee:** (`feat/r4-t20-extraction-ui`) — #52  
 **Blocked by:** T19 (client helper); T18 for live worker pipeline (stub completed row to start)  
 **Blocks:** nothing (closes Epic R4/R8)  
 
@@ -429,4 +429,4 @@ Title: T20: R4/R8 Extraction UI, Region Preview & Download Panel
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 ready to paste under parent Epic R4/R8. Add them to the GitHub Project **Todo** column. One person each. T17 merge first for worker engine, T19 for web client.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. Add them to the GitHub Project **Todo** column. One person each. T17 merge first for worker engine, T19 for web client.

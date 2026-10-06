@@ -81,9 +81,15 @@ R9 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #10):
 - [x] **T15** R9 Search field UI — #38 `feat/r9-t15-search-field`
 - [x] **T16** R9 Library compose + empty match — #39 `feat/r9-t16-library-search`
 
+R4/R8 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #7):
+
+- [ ] **T17** R4/R8 Worker lossless cutting engine — #49 `feat/r4-t17-worker-cutting`
+- [ ] **T18** R4/R8 Worker extraction job runner & storage pipeline — #50 `feat/r4-t18-worker-pipeline`
+- [ ] **T19** R4 Extraction client & signed download helpers — #51 `feat/r4-t19-extraction-client`
+- [ ] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
+
 Then:
 
-- [ ] R4/R8: extraction UI + worker job pipeline (lossless WAV/MP3 cutting)
 - [ ] R6: usability heuristics pass on finished UI
 - [ ] R7: latency validation under 5 concurrent users
 
