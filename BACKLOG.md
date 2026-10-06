@@ -380,7 +380,7 @@ Title: T18: R4/R8 Worker Extraction Job Runner & Storage Pipeline
 
 ### T19 — Extraction Client & Signed Download Helpers
 
-**Assignee:** (`feat/r4-t19-extraction-client`) — #51  
+**Assignee:** (`feat/r4-t19-extraction-client`) — #51 — **Done** (client helper + tests)  
 **Blocked by:** nothing  
 **Blocks:** T20  
 
