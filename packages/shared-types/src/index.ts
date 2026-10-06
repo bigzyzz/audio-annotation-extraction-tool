@@ -34,3 +34,12 @@ export type {
   WaveformPeaksDocument,
 } from "./waveform-peaks.js";
 export { waveformPeaksStoragePath } from "./waveform-peaks.js";
+
+export type {
+  ExtractedAnnotation,
+  ExtractedAnnotationMetadata,
+} from "./extraction.js";
+export {
+  extractionStoragePath,
+  extractionMetadataStoragePath,
+} from "./extraction.js";

@@ -348,7 +348,7 @@ Parent: GitHub #7. Close #7 when T17–T20 are Done. RK3 / RK8 → Mitigated whe
 
 ### T17 — Worker Lossless Cutting Engine
 
-**Assignee:** (`feat/r4-t17-worker-cutting`) — #49  
+**Assignee:** (`feat/r4-t17-worker-cutting`) — #49 — **Done** (cutting engine + tests)  
 **Blocked by:** nothing (local audio file fixtures)  
 **Blocks:** T18  
 
