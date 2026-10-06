@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T17 (R4/R8): Worker lossless cutting engine. Pure FFmpeg audio cutting module + annotation metadata generator in `apps/worker/src/extract.ts`. Validates extraction bounds, builds deterministic stream-copy commands (`-c copy`, `-avoid_negative_ts make_zero`) without lossy re-encoding for WAV/MP3 (R8), and formats overlapping annotations into segment-relative JSON schema (R4). Shared extraction types in `@audio-tool/shared-types`. Closes #49.
 - Dedicated Upload & Library Pages (R1, R6, R9): Separated audio upload from the library page; `AudioLibrary` renders tracks and search exclusively with a direct "+ Upload track" action button; `SiteHeader` adds a "Library" navigation link beside "Upload"; `/upload` page includes a "← Back to library" breadcrumb and upload success message links back to the library. Branch `feat/separate-upload-library-pages`.
 - Tactile Playhead Scrubber & Resilient Annotation Selection (R2, R3, R6): Replaced the 1px WaveSurfer cursor line with a prominent tactile 24×20px playhead scrubber knob with dual grip bars and vertical needle for smooth 60fps scrubbing with pointer capture, keyboard nudging, and Spacebar play/pause shortcut; resolved annotation mode breakage by decoupling `enableDragSelection` lifecycle from reactive state updates and disabling conflicting `dragToSeek` on the waveform; enabled seamless simultaneous playback and annotation with live "⏱ Stamp Playhead (MM:SS)" quick-action and "▶ Preview Selection" segment playback in both the waveform banner and annotation form. Branch `feat/r2-r3-waveform-annotation-ui`.
 - Visual Waveform Selection & Simplified Annotations UI (R2, R3, R6): Replaced all range sliders and the target timestamp card with direct visual waveform selection; section renamed to "Annotations" with a prominent "+ Add Annotation" button; clicking "+ Add Annotation" enables WaveSurfer Regions drag-selection for section highlighting and click-to-point selection directly on the waveform with live resize/drag handles; annotation form appears only while creating or editing and cleanly cancels on demand. Branch `feat/r2-r3-waveform-annotation-ui`.
@@ -81,9 +82,15 @@ R9 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #10):
 - [x] **T15** R9 Search field UI — #38 `feat/r9-t15-search-field`
 - [x] **T16** R9 Library compose + empty match — #39 `feat/r9-t16-library-search`
 
+R4/R8 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #7):
+
+- [x] **T17** R4/R8 Worker lossless cutting engine — #49 `feat/r4-t17-worker-cutting`
+- [ ] **T18** R4/R8 Worker extraction job runner & storage pipeline — #50 `feat/r4-t18-worker-pipeline`
+- [ ] **T19** R4 Extraction client & signed download helpers — #51 `feat/r4-t19-extraction-client`
+- [ ] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
+
 Then:
 
-- [ ] R4/R8: extraction UI + worker job pipeline (lossless WAV/MP3 cutting)
 - [ ] R6: usability heuristics pass on finished UI
 - [ ] R7: latency validation under 5 concurrent users
 
