@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AudioFile, WaveformPeaksDocument } from "@audio-tool/shared-types";
+import type { AudioFile, ExtractionJob, WaveformPeaksDocument } from "@audio-tool/shared-types";
 import { createClient } from "@/lib/supabase/client";
 import { createSignedPlaybackUrl } from "@/lib/signed-url";
 import {
@@ -15,6 +15,7 @@ import {
   type AnnotationListItem,
   type AnnotationPanelRange,
 } from "@/components/annotation-panel";
+import { ExtractionPanel } from "@/components/extraction-panel";
 import { roundAnnotationTime } from "@/lib/annotations";
 import {
   annotationRowFromPayload,
@@ -37,9 +38,10 @@ export type FilePlayerRow = Pick<
 
 type FilePlayerPanelProps = {
   initialFile: FilePlayerRow;
+  initialJobs?: ExtractionJob[];
 };
 
-export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
+export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPanelProps) {
   const [file, setFile] = useState<FilePlayerRow>(initialFile);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [peaks, setPeaks] = useState<WaveformPeaksDocument | null>(null);
@@ -313,6 +315,22 @@ export function FilePlayerPanel({ initialFile }: FilePlayerPanelProps) {
           editingAnnotationId={editingId}
           onTimeSelect={stampTime}
           onTimeUpdate={onTimeUpdate}
+        />
+      </div>
+
+      <div id="extraction" className="w-full pt-6 border-t border-zinc-200 dark:border-zinc-800">
+        <ExtractionPanel
+          audioFileId={file.id}
+          filename={file.filename}
+          format={file.format}
+          durationSeconds={file.duration_seconds}
+          currentTime={currentTime}
+          selectedRange={draftRange}
+          isSelecting={isSelecting}
+          onStartSelection={startAddAnnotation}
+          onCancelSelection={cancelSelection}
+          onPreviewRange={previewRange}
+          initialJobs={initialJobs}
         />
       </div>
 

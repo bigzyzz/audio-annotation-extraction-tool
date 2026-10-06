@@ -26,13 +26,20 @@ export default async function FilePage({ params }: FilePageProps) {
     redirect("/login");
   }
 
-  const { data: file } = await supabase
-    .from("audio_files")
-    .select(
-      "id, filename, format, duration_seconds, storage_path, waveform_peaks_path",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: file }, { data: initialJobs }] = await Promise.all([
+    supabase
+      .from("audio_files")
+      .select(
+        "id, filename, format, duration_seconds, storage_path, waveform_peaks_path",
+      )
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("extraction_jobs")
+      .select("*")
+      .eq("audio_file_id", id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (!file) {
     notFound();
@@ -61,7 +68,7 @@ export default async function FilePage({ params }: FilePageProps) {
           Back to library
         </Link>
       </div>
-      <FilePlayerPanel initialFile={file} />
+      <FilePlayerPanel initialFile={file} initialJobs={initialJobs ?? []} />
     </main>
   );
 }

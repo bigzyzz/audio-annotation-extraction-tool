@@ -650,7 +650,7 @@ export function WaveformPlayer({
             <div className="flex items-center gap-2 font-medium">
               <span className="inline-block h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
               <span>
-                Annotation Mode: Drag across the waveform to highlight a section, or click anywhere for a timestamp point.
+                Selection Mode: Drag across the waveform to highlight a section, or click anywhere for a timestamp point.
               </span>
             </div>
 
@@ -659,20 +659,29 @@ export function WaveformPlayer({
                 type="button"
                 onClick={stampCurrentPlayhead}
                 className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
-                title="Stamp current playback time onto annotation"
+                title="Stamp current playback time"
               >
                 ⏱ Stamp Playhead ({formatDurationSeconds(currentPlayheadTime)})
               </button>
 
               {draftRange?.isRange && draftRange.end != null ? (
-                <button
-                  type="button"
-                  onClick={previewDraftRange}
-                  className="flex items-center gap-1 rounded border border-blue-300 bg-blue-600 px-2.5 py-1 font-medium text-white shadow-xs transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
-                  title="Play highlighted section"
-                >
-                  ▶ Preview Section
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={previewDraftRange}
+                    className="flex items-center gap-1 rounded border border-blue-300 bg-blue-600 px-2.5 py-1 font-medium text-white shadow-xs transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    title="Play highlighted section"
+                  >
+                    ▶ Preview Section
+                  </button>
+                  <a
+                    href="#extraction"
+                    className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
+                    title="Extract this selection into a lossless segment"
+                  >
+                    ✂ Extract Selection
+                  </a>
+                </>
               ) : null}
 
               {draftRange ? (
