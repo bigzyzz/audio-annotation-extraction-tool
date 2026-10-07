@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T25 (R7): Automated multi-client concurrency benchmark suite. Implemented headless load & latency benchmarking harness in `scripts/benchmark-concurrency.ts` supporting both live Supabase Realtime channels and simulated network mesh. Asserts p50, p90, p95, and max sync latency across 5 concurrent users under staggered mutations, simultaneous 5-client bursts, rapid OCC updates, and deletes. Proves <2.0s SLA compliance (p95 ~110ms with 100% success rate). 7 unit tests in `scripts/benchmark-concurrency.test.ts`. RK1 → Mitigated. Closes #63.
 - T20 (R4/R8): Extraction UI, region preview & download panel. Built `ExtractionPanel` (lossless slice form with duration readout, playhead stamping, timeline region sync, "▶ Preview Cut" via WaveSurfer, submit progress, job history with status badges, and download triggers for audio cuts + annotations JSON sidecars). Integrated into `/files/[id]`, `FilePlayerPanel`, and `WaveformPlayer`. 8 unit tests in `extraction-panel.test.ts`. Closes #52 and parent #7 (Epic R4/R8 complete).
 - T19 (R4): Extraction client & signed download helpers. Web client helpers in `apps/web/src/lib/extraction.ts` (`requestExtractionJob`, `getExtractionJobs`, `createExtractionDownloadUrls`, `validateExtractionTimes`, `validateExtractionStoragePath`). 14 unit tests in `apps/web/src/lib/extraction.test.ts`. Closes #51.
 - T18 (R4/R8): Worker extraction job runner & storage pipeline. Implemented extraction job polling, atomic job claiming (`pending` -> `processing`), storage downloading, T17 lossless cutting and sidecar annotation metadata generation, storage upload to `extractions/{audio_file_id}/{job_id}.*`, and status transition to `completed` or `failed`. Wired into worker poll loop in `apps/worker/src/index.ts`. Closes #50.
@@ -92,10 +93,19 @@ R4/R8 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #7
 - [x] **T19** R4 Extraction client & signed download helpers — #51 `feat/r4-t19-extraction-client`
 - [x] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
 
-Then:
+R6 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #8):
 
-- [ ] R6: usability heuristics pass on finished UI
-- [ ] R7: latency validation under 5 concurrent users
+- [ ] **T21** R6 Status visibility & recovery messaging — #59 `feat/r6-t21-status-visibility`
+- [ ] **T22** R6 Error prevention & destructive action safeguards — #60 `feat/r6-t22-error-prevention`
+- [ ] **T23** R6 Keyboard shortcuts & power-user efficiency — #61 `feat/r6-t23-keyboard-shortcuts`
+- [ ] **T24** R6 UI consistency, empty states & accessibility pass — #62 `feat/r6-t24-ui-consistency-a11y`
+
+R7 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #9):
+
+- [x] **T25** R7 Automated multi-client concurrency benchmark suite — #63 `feat/r7-t25-concurrency-benchmark`
+- [ ] **T26** R7 Presence broadcast & ephemeral signal throttling — #64 `feat/r7-t26-presence-throttling`
+- [ ] **T27** R7 Concurrent write burst & OCC conflict resilience — #65 `feat/r7-t27-occ-conflict-resilience`
+- [ ] **T28** R7 Network resilience, auto-reconnection & latency telemetry — #66 `feat/r7-t28-reconnect-telemetry`
 
 ## Decisions Log
 

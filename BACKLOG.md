@@ -420,13 +420,191 @@ Title: T20: R4/R8 Extraction UI, Region Preview & Download Panel
 
 ---
 
-## Later (not split yet)
+## Epic: R6 Nielsen Usability Heuristics Pass (US14)
 
-- R6: Nielsen pass (US14, after UI exists)
-- R7: 5-user / <2s check (US13, after R3)
+Parent: GitHub #8. Close #8 when T21–T24 are Done. RK6 → Mitigated when UI heuristics pass lands. Issues: T21 #59, T22 #60, T23 #61, T24 #62.
+
+**R6 contract (all four agree before code):**
+- Adhere to Jakob Nielsen's 10 Usability Heuristics across the completed application
+- US14 acceptance criteria: pending actions disable submit; system state and async progress visible; destructive actions require confirmation or can be cancelled; actionable recovery feedback on error states
+- Keyboard accessibility: Spacebar play/pause, seek shortcuts, `?` keyboard cheat sheet
+- Empty states: welcoming, actionable copy across library, search, and annotations
+- Touch `apps/web/` frontend components only — no schema or worker pipeline changes
+
+### T21 — Status Visibility & Recovery Messaging
+
+**Assignee:** (`feat/r6-t21-status-visibility`) — #59  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Improve system visibility and user recovery feedback across asynchronous workflows (US14):
+- Add real-time sync / connection state indicator on `/files/[id]` (e.g. connected, reconnecting, offline).
+- Implement accessible loading skeletons and progress spinners during worker waveform peak generation, audio upload, and extraction queue polling.
+- Replace opaque or raw system error alerts with human-readable, actionable recovery guidance across auth, upload, annotation (OCC conflict handling), and extraction.
+- Introduce non-intrusive toast / banner notifications for asynchronous completions (e.g. extraction completed ready to download).
+
+**Touch:** `apps/web/src/components/`, `apps/web/src/app/files/[id]/page.tsx`, `apps/web/src/lib/`.
+
+**Done when:** Users receive immediate, visible status feedback for all async states, network changes, and actionable recovery steps on errors.
+
+```
+Title: T21: R6 Status Visibility & Recovery Messaging
+```
+
+### T22 — Error Prevention & Destructive Action Safeguards
+
+**Assignee:** (`feat/r6-t22-error-prevention`) — #60  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Prevent user slips/mistakes and provide safe emergency exits before irreversible actions (US14):
+- Add explicit two-step confirmation dialogs or undo mechanisms for destructive actions (deleting annotations and uploaded audio files).
+- Implement live inline validation on timestamp input bounds (preventing start >= end, start < 0, or end > audio duration) before submission.
+- Guard against accidental navigation / modal closure when forms contain unsaved annotation edits (dirty form warning).
+- Enforce disabled submit states and prevention of double-clicks during in-flight network requests.
+
+**Touch:** `apps/web/src/components/annotation-panel.tsx`, `apps/web/src/components/extraction-panel.tsx`, `apps/web/src/components/file-list.tsx`.
+
+**Done when:** Accidental deletions require explicit confirmation, timestamp forms proactively block invalid bounds before submit, and unsaved changes cannot be lost inadvertently.
+
+```
+Title: T22: R6 Error Prevention & Destructive Action Safeguards
+```
+
+### T23 — Keyboard Shortcuts & Power-User Efficiency
+
+**Assignee:** (`feat/r6-t23-keyboard-shortcuts`) — #61  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Empower both novice and power users with intuitive keyboard transport and shortcuts (US14):
+- Implement keyboard navigation shortcuts for playback and timeline inspection: Spacebar (Play/Pause), Left/Right Arrows (Seek ±1s / ±5s with Shift), J/K/L transport, 'M' (Stamp annotation marker at playhead), 'Esc' (Cancel active selection or close modal).
+- Add an accessible Keyboard Shortcuts cheat sheet / help modal toggled by pressing `?` or clicking a persistent help trigger.
+- Add one-click "Clear Selection" emergency exits for active WaveSurfer regions and active search query inputs.
+
+**Touch:** `apps/web/src/components/waveform-player.tsx`, `apps/web/src/components/file-player-panel.tsx`, `apps/web/src/components/search-field.tsx`.
+
+**Done when:** Users can fluidly scrub, play, stamp annotations, and cancel selections without touching a mouse; pressing `?` displays the shortcut reference.
+
+```
+Title: T23: R6 Keyboard Shortcuts & Power-User Efficiency
+```
+
+### T24 — UI Consistency, Empty States & Accessibility Pass
+
+**Assignee:** (`feat/r6-t24-ui-consistency-a11y`) — #62  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Harmonize UI aesthetics, typography, accessibility, and guidance across all pages (US14):
+- Standardize design tokens, spacing, button variants, and navigation breadcrumbs across `/`, `/upload`, `/files/[id]`, `/login`, and `/signup`.
+- Provide contextual, welcoming empty states with clear calls-to-action (empty library with "+ Upload track", empty search with clear suggestions, empty annotations with "Drag on waveform to annotate").
+- Audit and enhance accessibility (ARIA labels for audio playhead, waveform canvas, playback controls, and volume sliders; logical tab indexing; color contrast compliance).
+- Ensure intuitive, human-friendly time formatting (e.g. MM:SS.ms displays with hover tooltips) to avoid raw second recall.
+
+**Touch:** `apps/web/src/components/`, `apps/web/src/app/`.
+
+**Done when:** Visual hierarchy and design standards are unified across all routes; all empty states guide user action; screen readers and tab navigation work cleanly.
+
+```
+Title: T24: R6 UI Consistency, Empty States & Accessibility Pass
+```
+
+---
+
+## Epic: R7 Concurrent Performance & Sync Latency (US13)
+
+Parent: GitHub #9. Close #9 when T25–T28 are Done. RK1 → Mitigated when multi-client latency benchmark passes. Issues: T25 #63, T26 #64, T27 #65, T28 #66.
+
+**R7 contract (all four agree before code):**
+- Target: 5 concurrent annotators per audio file with sub-2.0s round-trip synchronization latency
+- Optimistic Concurrency Control (OCC): edits rejected if `version != clientVersion`; no silent overwrites
+- Ephemeral signals (e.g. presence, live cursors): throttled (50–100ms) over Realtime Broadcast/Presence, not committed to Postgres
+- Automated quantitative benchmarking script to prove <2.0s p95 latency under simulated multi-user load
+
+### T25 — Automated Multi-Client Concurrency Benchmark Suite
+
+**Assignee:** (`feat/r7-t25-concurrency-benchmark`) — #63 — **Done** (script + tests + SLA verified)  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Implement an automated load and latency benchmarking suite simulating 5 concurrent annotators (US13):
+- Build a headless test harness (Node.js / Supabase Realtime client simulation) that connects 5 concurrent sessions to a single audio file.
+- Emit staggered and simultaneous annotation mutations (INSERT, UPDATE, DELETE) across all 5 clients.
+- Measure end-to-end round-trip latency from dispatch on client A to receipt and DOM/state reconciliation on clients B, C, D, and E.
+- Assert strict performance criteria: p50, p95, and maximum latency must remain strictly under 2.0 seconds (req R7, RK1).
+- Generate a summary benchmark report with latency histograms and pass/fail thresholds.
+
+**Touch:** `scripts/benchmark-concurrency.ts`, `package.json`.
+
+**Done when:** Automated script runs 5 concurrent client sessions against a test file and proves sync latency < 2.0s with zero dropped updates.
+
+```
+Title: T25: R7 Automated Multi-Client Concurrency Benchmark Suite
+```
+
+### T26 — Presence Broadcast & Ephemeral Signal Throttling
+
+**Assignee:** (`feat/r7-t26-presence-throttling`) — #64  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Track active concurrent annotators and throttle ephemeral signal broadcast to prevent channel flooding (US13):
+- Integrate Supabase Realtime Presence channel on `/files/[id]` to broadcast and track active annotator avatars/usernames without database overhead.
+- Display a live collaborator badge (e.g. "3 users active on this track") in the file header.
+- Implement rate limiting and throttling (50–100ms throttle window) for ephemeral high-frequency broadcasts (such as live playhead scrubber positions).
+- Validate that presence broadcast traffic does not degrade annotation message sync speed or exceed free-tier WebSocket quotas (RK1, RK18).
+
+**Touch:** `apps/web/src/components/collaborator-presence.tsx`, `apps/web/src/lib/annotation-realtime.ts`, `apps/web/src/components/file-player-panel.tsx`.
+
+**Done when:** Multiple concurrent browser sessions see active collaborator presence indicators in real time; ephemeral traffic is throttled without inducing WebSocket queue lag.
+
+```
+Title: T26: R7 Presence Broadcast & Ephemeral Signal Throttling
+```
+
+### T27 — Concurrent Write Burst & OCC Conflict Resilience
+
+**Assignee:** (`feat/r7-t27-occ-conflict-resilience`) — #65  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Harden optimistic concurrency control and client state reconciliation under concurrent write bursts (US13):
+- Test and handle simultaneous annotation edit collisions when two or more users attempt to modify the same annotation version simultaneously.
+- Verify that Postgres `bump_annotation_version` trigger and OCC filter (`.eq("version", clientVersion)`) reject stale writes without race conditions or silent overwrites.
+- Ensure the losing client receives a clear conflict indicator and automatically synchronizes to the winning version without loss of other local state.
+- Measure and verify that database transaction locks remain sub-500ms during simultaneous write bursts from 5 users (RK8).
+
+**Touch:** `apps/web/src/lib/annotations.ts`, `apps/web/src/components/annotation-panel.tsx`, `apps/web/src/lib/annotation-realtime.ts`.
+
+**Done when:** Stale concurrent edits are rejected reliably by OCC, clients reconcile instantly without UI deadlock, and no edits silently overwrite.
+
+```
+Title: T27: R7 Concurrent Write Burst & OCC Conflict Resilience
+```
+
+### T28 — Network Resilience, Auto-Reconnection & Latency Telemetry
+
+**Assignee:** (`feat/r7-t28-reconnect-telemetry`) — #66  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Implement connection health monitoring, automatic WebSocket re-subscription, and latency telemetry (US13):
+- Detect network flaps, tab hibernation, and WebSocket disconnections in Supabase Realtime channels.
+- Implement automatic exponential backoff reconnection and channel re-subscription.
+- Run state reconciliation on re-connect (fetch delta annotations created during the offline interval so client state never drifts).
+- Add developer/diagnostic latency telemetry badge (displaying live ping, round-trip message receipt latency, and connection status).
+
+**Touch:** `apps/web/src/lib/annotation-realtime.ts`, `apps/web/src/components/sync-status-indicator.tsx`.
+
+**Done when:** Dropped connections automatically recover and sync missing annotations upon reconnection; live latency telemetry confirms <2.0s sync during active sessions.
+
+```
+Title: T28: R7 Network Resilience, Auto-Reconnection & Latency Telemetry
+```
 
 ---
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. Add them to the GitHub Project **Todo** column. One person each. T17 merge first for worker engine, T19 for web client.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. T21–T24 opened as #59–#62 under parent #8. T25–T28 opened as #63–#66 under parent #9. Add them to the GitHub Project **Todo** column. One person each.
