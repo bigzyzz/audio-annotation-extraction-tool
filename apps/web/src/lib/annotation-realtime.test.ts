@@ -3,7 +3,10 @@ import { describe, it } from "node:test";
 import type { AnnotationListItem } from "../components/annotation-panel";
 import {
   annotationRowFromPayload,
+  detectEditConflict,
+  discardDraftForServer,
   mergeAnnotationRealtimeEvent,
+  reconcileDraftWithServer,
 } from "./annotation-realtime";
 
 const FILE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -86,3 +89,87 @@ describe("mergeAnnotationRealtimeEvent", () => {
     );
   });
 });
+
+describe("detectEditConflict", () => {
+  it("detects when incoming UPDATE has different version", () => {
+    const editing = { id: "note-1", version: 1 };
+    const incoming = note({ id: "note-1", version: 2, label: "updated by someone else" });
+
+    const result = detectEditConflict(editing, "UPDATE", incoming);
+    assert.equal(result.hasConflict, true);
+    assert.equal(result.reason, "version_mismatch");
+    assert.equal(result.serverVersion, 2);
+    assert.deepEqual(result.serverNote, incoming);
+  });
+
+  it("detects when incoming DELETE targets currently editing note", () => {
+    const editing = { id: "note-1", version: 1 };
+    const incoming = note({ id: "note-1", version: 1 });
+
+    const result = detectEditConflict(editing, "DELETE", incoming);
+    assert.equal(result.hasConflict, true);
+    assert.equal(result.reason, "deleted");
+  });
+
+  it("reports no conflict when versions match on UPDATE", () => {
+    const editing = { id: "note-1", version: 2 };
+    const incoming = note({ id: "note-1", version: 2 });
+
+    const result = detectEditConflict(editing, "UPDATE", incoming);
+    assert.equal(result.hasConflict, false);
+  });
+
+  it("reports no conflict for different note IDs or when not editing", () => {
+    const editing = { id: "note-1", version: 1 };
+    const incoming = note({ id: "note-2", version: 5 });
+
+    assert.equal(detectEditConflict(editing, "UPDATE", incoming).hasConflict, false);
+    assert.equal(detectEditConflict(null, "UPDATE", incoming).hasConflict, false);
+    assert.equal(detectEditConflict(undefined, "DELETE", incoming).hasConflict, false);
+  });
+});
+
+describe("reconcileDraftWithServer", () => {
+  it("preserves local draft inputs and adopts server version", () => {
+    const draft = { label: "my draft label", comment: "my local feedback" };
+    const serverNote = { version: 3 };
+
+    const reconciled = reconcileDraftWithServer(draft, serverNote);
+    assert.deepEqual(reconciled, {
+      label: "my draft label",
+      comment: "my local feedback",
+      version: 3,
+    });
+  });
+});
+
+describe("discardDraftForServer", () => {
+  it("replaces draft inputs with server note fields and version", () => {
+    const serverNote = {
+      version: 4,
+      label: "server label",
+      comment: "server comment",
+    };
+
+    const discarded = discardDraftForServer(serverNote);
+    assert.deepEqual(discarded, {
+      label: "server label",
+      comment: "server comment",
+      version: 4,
+    });
+  });
+
+  it("converts null server fields to empty strings for form inputs", () => {
+    const discarded = discardDraftForServer({
+      version: 2,
+      label: null,
+      comment: null,
+    });
+    assert.deepEqual(discarded, {
+      label: "",
+      comment: "",
+      version: 2,
+    });
+  });
+});
+

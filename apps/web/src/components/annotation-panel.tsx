@@ -7,9 +7,14 @@ import { createClient } from "@/lib/supabase/client";
 import {
   createAnnotation,
   deleteAnnotation,
+  getLatestAnnotation,
   roundAnnotationTime,
   updateAnnotation,
 } from "@/lib/annotations";
+import {
+  discardDraftForServer,
+  reconcileDraftWithServer,
+} from "@/lib/annotation-realtime";
 import { formatDurationSeconds } from "@/lib/format-duration";
 
 export type AnnotationListItem = Annotation & {
@@ -118,6 +123,15 @@ export function AnnotationPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState<AnnotationListItem | null>(null);
+  const [editingTargetVersion, setEditingTargetVersion] = useState<number | null>(null);
+  const [submitConflict, setSubmitConflict] = useState<{
+    serverVersion: number;
+    serverLabel: string | null;
+    serverComment: string | null;
+    serverAuthor?: string | null;
+    isDeleted?: boolean;
+  } | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isAddingLocal, setIsAddingLocal] = useState(false);
 
@@ -188,12 +202,43 @@ export function AnnotationPanel({
   }, [audioFileId, controlled]);
 
   const editing = useMemo(
-    () => annotations.find((note) => note.id === editingId) ?? null,
-    [annotations, editingId],
+    () => editingNote ?? annotations.find((note) => note.id === editingId) ?? null,
+    [annotations, editingId, editingNote],
   );
+
+  // Derive remote background collisions directly from annotations state (US13)
+  const remoteConflict = useMemo(() => {
+    if (!editingId || editingTargetVersion == null) return null;
+    const currentInList = annotations.find((n) => n.id === editingId);
+    if (!currentInList) {
+      return {
+        serverVersion: editingTargetVersion,
+        serverLabel: null,
+        serverComment: null,
+        isDeleted: true,
+      };
+    }
+
+    if (currentInList.version !== editingTargetVersion) {
+      return {
+        serverVersion: currentInList.version,
+        serverLabel: currentInList.label,
+        serverComment: currentInList.comment,
+        serverAuthor: currentInList.author_username,
+        isDeleted: false,
+      };
+    }
+
+    return null;
+  }, [annotations, editingId, editingTargetVersion]);
+
+  const conflictState = submitConflict ?? remoteConflict;
 
   function startAdd() {
     setEditingId(null);
+    setEditingNote(null);
+    setEditingTargetVersion(null);
+    setSubmitConflict(null);
     onEditingChange?.(null);
     setIsAddingLocal(true);
     onStartAdd?.();
@@ -210,6 +255,9 @@ export function AnnotationPanel({
 
   function handleCancel() {
     setEditingId(null);
+    setEditingNote(null);
+    setEditingTargetVersion(null);
+    setSubmitConflict(null);
     setIsAddingLocal(false);
     onEditingChange?.(null);
     onCancelAdd?.();
@@ -221,6 +269,9 @@ export function AnnotationPanel({
 
   function beginEdit(note: AnnotationListItem) {
     setEditingId(note.id);
+    setEditingNote(note);
+    setEditingTargetVersion(note.version);
+    setSubmitConflict(null);
     setIsAddingLocal(false);
     onEditingChange?.(note.id);
     setPendingDeleteId(null);
@@ -240,6 +291,31 @@ export function AnnotationPanel({
     setError(null);
   }
 
+  function handleAdoptLatestVersion() {
+    if (!conflictState) return;
+    const reconciled = reconcileDraftWithServer(
+      { label, comment },
+      { version: conflictState.serverVersion },
+    );
+    setEditingTargetVersion(reconciled.version);
+    setSubmitConflict(null);
+    setError(null);
+  }
+
+  function handleDiscardDraft() {
+    if (!conflictState) return;
+    const discarded = discardDraftForServer({
+      version: conflictState.serverVersion,
+      label: conflictState.serverLabel,
+      comment: conflictState.serverComment,
+    });
+    setLabel(discarded.label);
+    setComment(discarded.comment);
+    setEditingTargetVersion(discarded.version);
+    setSubmitConflict(null);
+    setError(null);
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
@@ -256,10 +332,13 @@ export function AnnotationPanel({
     setBusy(true);
     const supabase = createClient();
 
-    const result = editing
+    const targetNote = editingNote ?? editing;
+    const activeVersion = editingTargetVersion ?? targetNote?.version ?? 1;
+
+    const result = targetNote
       ? await updateAnnotation(supabase, {
-          id: editing.id,
-          version: editing.version,
+          id: targetNote.id,
+          version: activeVersion,
           startSeconds,
           endSeconds,
           label,
@@ -276,6 +355,25 @@ export function AnnotationPanel({
     setBusy(false);
 
     if (!result.ok) {
+      if (result.conflict && targetNote) {
+        // Fetch fresh server annotation state so recovery details are accurate even if realtime lagged
+        const latestResult = await getLatestAnnotation(supabase, targetNote.id);
+        if (latestResult.ok) {
+          setSubmitConflict({
+            serverVersion: latestResult.annotation.version,
+            serverLabel: latestResult.annotation.label,
+            serverComment: latestResult.annotation.comment,
+            isDeleted: false,
+          });
+        } else {
+          setSubmitConflict({
+            serverVersion: (result.serverVersion ?? activeVersion) + 1,
+            serverLabel: null,
+            serverComment: null,
+            isDeleted: false,
+          });
+        }
+      }
       setError(result.error);
       return;
     }
@@ -400,6 +498,86 @@ export function AnnotationPanel({
                   className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
                 />
               </label>
+
+              {conflictState ? (
+                <div
+                  role="alert"
+                  className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 shadow-sm dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-xl" aria-hidden="true">
+                      ⚠️
+                    </span>
+                    <div className="flex flex-1 flex-col gap-2">
+                      <h4 className="text-sm font-semibold">
+                        {conflictState.isDeleted
+                          ? "Annotation Deleted by Another Collaborator"
+                          : "Sync Conflict: Note modified by another collaborator"}
+                      </h4>
+                      <p className="text-xs leading-relaxed opacity-90">
+                        {conflictState.isDeleted
+                          ? "This annotation was removed while you had it open. Your draft cannot be saved to a deleted note."
+                          : `Another user saved changes (version ${conflictState.serverVersion}) while you were editing. Choose how to reconcile:`}
+                      </p>
+
+                      {!conflictState.isDeleted ? (
+                        <div className="my-1 rounded border border-amber-200 bg-white/60 p-2.5 text-xs text-zinc-700 dark:border-amber-800 dark:bg-black/30 dark:text-zinc-300">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                            Current server version (v{conflictState.serverVersion}
+                            {conflictState.serverAuthor ? ` by @${conflictState.serverAuthor}` : ""}):
+                          </span>
+                          <div className="mt-1 flex flex-col gap-0.5">
+                            {conflictState.serverLabel ? (
+                              <div>
+                                <span className="font-medium text-zinc-500">Label:</span>{" "}
+                                {conflictState.serverLabel}
+                              </div>
+                            ) : null}
+                            {conflictState.serverComment ? (
+                              <div>
+                                <span className="font-medium text-zinc-500">Comment:</span>{" "}
+                                {conflictState.serverComment}
+                              </div>
+                            ) : null}
+                            {!conflictState.serverLabel && !conflictState.serverComment ? (
+                              <div className="italic text-zinc-400">Empty label and comment</div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {conflictState.isDeleted ? (
+                          <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
+                          >
+                            Dismiss
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={handleAdoptLatestVersion}
+                              className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
+                            >
+                              Keep My Draft & Adopt v{conflictState.serverVersion}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDiscardDraft}
+                              className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 shadow-xs transition-colors hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200 dark:hover:bg-zinc-800"
+                            >
+                              Discard My Draft & Load Server Note
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               {error ? (
                 <p

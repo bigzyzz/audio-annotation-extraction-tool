@@ -6,6 +6,7 @@ import {
   ANNOTATION_ERRORS,
   createAnnotation,
   deleteAnnotation,
+  getLatestAnnotation,
   normalizeAnnotationText,
   roundAnnotationTime,
   updateAnnotation,
@@ -241,6 +242,7 @@ describe("updateAnnotation", () => {
       ok: false,
       error: ANNOTATION_ERRORS.conflict,
       conflict: true,
+      serverVersion: 2,
     });
   });
 });
@@ -272,3 +274,37 @@ describe("deleteAnnotation", () => {
     assert.deepEqual(result, { ok: false, error: ANNOTATION_ERRORS.missing });
   });
 });
+
+describe("getLatestAnnotation", () => {
+  it("fetches the latest annotation by id", async () => {
+    const note = sampleAnnotation({ version: 3, label: "reconciled" });
+    const result = await getLatestAnnotation(
+      mockSupabase({
+        onSelect: (_columns, filters) => {
+          assert.equal(filters.id, NOTE);
+          return { data: note, error: null };
+        },
+      }),
+      NOTE,
+    );
+
+    assert.deepEqual(result, { ok: true, annotation: note });
+  });
+
+  it("rejects invalid annotation UUID", async () => {
+    const result = await getLatestAnnotation(mockSupabase({}), "not-a-uuid");
+    assert.deepEqual(result, { ok: false, error: ANNOTATION_ERRORS.ids });
+  });
+
+  it("returns error when annotation is missing", async () => {
+    const result = await getLatestAnnotation(
+      mockSupabase({
+        onSelect: () => ({ data: null, error: null }),
+      }),
+      NOTE,
+    );
+
+    assert.deepEqual(result, { ok: false, error: ANNOTATION_ERRORS.missing });
+  });
+});
+

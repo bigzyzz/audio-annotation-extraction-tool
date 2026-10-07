@@ -565,7 +565,7 @@ Title: T26: R7 Presence Broadcast & Ephemeral Signal Throttling
 
 ### T27 — Concurrent Write Burst & OCC Conflict Resilience
 
-**Assignee:** (`feat/r7-t27-occ-conflict-resilience`) — #65  
+**Assignee:** (`feat/r7-t27-occ-conflict-resilience`) — #65 — **Done** (OCC hardening + recovery UI + tests)  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 
