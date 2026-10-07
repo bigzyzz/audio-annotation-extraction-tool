@@ -26,24 +26,39 @@ export default async function FilePage({ params }: FilePageProps) {
     redirect("/login");
   }
 
-  const [{ data: file }, { data: initialJobs }] = await Promise.all([
-    supabase
-      .from("audio_files")
-      .select(
-        "id, filename, format, duration_seconds, storage_path, waveform_peaks_path",
-      )
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("extraction_jobs")
-      .select("*")
-      .eq("audio_file_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: file }, { data: initialJobs }, { data: profile }] =
+    await Promise.all([
+      supabase
+        .from("audio_files")
+        .select(
+          "id, filename, format, duration_seconds, storage_path, waveform_peaks_path",
+        )
+        .eq("id", id)
+        .maybeSingle(),
+      supabase
+        .from("extraction_jobs")
+        .select("*")
+        .eq("audio_file_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ]);
 
   if (!file) {
     notFound();
   }
+
+  const currentUser = {
+    id: user.id,
+    username:
+      profile?.username ||
+      (user.user_metadata?.username as string) ||
+      user.email?.split("@")[0] ||
+      "User",
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-6 py-12">
@@ -68,7 +83,11 @@ export default async function FilePage({ params }: FilePageProps) {
           Back to library
         </Link>
       </div>
-      <FilePlayerPanel initialFile={file} initialJobs={initialJobs ?? []} />
+      <FilePlayerPanel
+        initialFile={file}
+        initialJobs={initialJobs ?? []}
+        currentUser={currentUser}
+      />
     </main>
   );
 }

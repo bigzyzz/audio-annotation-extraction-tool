@@ -545,7 +545,7 @@ Title: T25: R7 Automated Multi-Client Concurrency Benchmark Suite
 
 ### T26 — Presence Broadcast & Ephemeral Signal Throttling
 
-**Assignee:** (`feat/r7-t26-presence-throttling`) — #64  
+**Assignee:** (`feat/r7-t26-presence-throttling`) — #64 — **Done** (Presence + throttling + tests)  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 
