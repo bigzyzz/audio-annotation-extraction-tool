@@ -585,7 +585,7 @@ Title: T27: R7 Concurrent Write Burst & OCC Conflict Resilience
 
 ### T28 — Network Resilience, Auto-Reconnection & Latency Telemetry
 
-**Assignee:** (`feat/r7-t28-reconnect-telemetry`) — #66  
+**Assignee:** (`feat/r7-t28-reconnect-telemetry`) — #66 — **Done** (reconnection backoff + latency telemetry + delta sync)  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 

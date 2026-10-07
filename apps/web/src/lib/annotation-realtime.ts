@@ -129,3 +129,124 @@ export function discardDraftForServer(serverNote: {
   };
 }
 
+export type RealtimeConnectionStatus =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "disconnected";
+
+export type LatencyGrade = "optimal" | "acceptable" | "lagging" | "offline";
+
+export type LatencyTelemetry = {
+  lastPingMs: number | null;
+  avgPingMs: number | null;
+  samples: number[];
+  grade: LatencyGrade;
+  slaPass: boolean;
+  lastSyncedAt: number | null;
+};
+
+export const LATENCY_SLA_THRESHOLD_MS = 2000;
+export const LATENCY_OPTIMAL_THRESHOLD_MS = 300;
+
+/**
+ * Calculates exponential backoff with jitter for WebSocket reconnection (T28).
+ */
+export function calculateBackoffDelay(
+  attempt: number,
+  baseMs = 500,
+  maxMs = 8000,
+  jitterRatio = 0.25,
+): number {
+  if (attempt <= 0) return 0;
+  const exponential = Math.min(baseMs * Math.pow(2, attempt - 1), maxMs);
+  const jitter = exponential * jitterRatio * Math.random();
+  return Math.round(exponential + jitter);
+}
+
+/**
+ * Evaluates latency grade and SLA compliance (<2.0s per requirement R7 / RK1).
+ */
+export function evaluateLatencyGrade(latencyMs: number | null): {
+  grade: LatencyGrade;
+  slaPass: boolean;
+} {
+  if (latencyMs == null) {
+    return { grade: "offline", slaPass: false };
+  }
+  if (latencyMs < LATENCY_OPTIMAL_THRESHOLD_MS) {
+    return { grade: "optimal", slaPass: true };
+  }
+  if (latencyMs <= LATENCY_SLA_THRESHOLD_MS) {
+    return { grade: "acceptable", slaPass: true };
+  }
+  return { grade: "lagging", slaPass: false };
+}
+
+/**
+ * Updates a sliding window of latency samples and computes the moving average.
+ */
+export function recordLatencySample(
+  previousSamples: number[],
+  newSampleMs: number,
+  maxSamples = 10,
+): { samples: number[]; avgPingMs: number } {
+  const samples = [...previousSamples, Math.max(0, Math.round(newSampleMs))].slice(
+    -maxSamples,
+  );
+  const sum = samples.reduce((acc, v) => acc + v, 0);
+  const avgPingMs = samples.length > 0 ? Math.round(sum / samples.length) : 0;
+  return { samples, avgPingMs };
+}
+
+/**
+ * Reconciles annotations after reconnecting or waking from tab hibernation.
+ * Detects missing, updated, and deleted rows so client state never drifts (T28).
+ */
+export function reconcileAnnotationsOnReconnect(
+  localNotes: AnnotationListItem[],
+  fetchedNotes: AnnotationListItem[],
+): {
+  reconciled: AnnotationListItem[];
+  addedCount: number;
+  updatedCount: number;
+  removedCount: number;
+  hasChanged: boolean;
+} {
+  const localMap = new Map(localNotes.map((n) => [n.id, n]));
+  const fetchedMap = new Map(fetchedNotes.map((n) => [n.id, n]));
+
+  let addedCount = 0;
+  let updatedCount = 0;
+  let removedCount = 0;
+
+  for (const fetched of fetchedNotes) {
+    const local = localMap.get(fetched.id);
+    if (!local) {
+      addedCount++;
+    } else if (local.version !== fetched.version) {
+      updatedCount++;
+    }
+  }
+
+  for (const local of localNotes) {
+    if (!fetchedMap.has(local.id)) {
+      removedCount++;
+    }
+  }
+
+  const hasChanged = addedCount > 0 || updatedCount > 0 || removedCount > 0;
+  const reconciled = [...fetchedNotes].sort(
+    (a, b) => a.start_seconds - b.start_seconds,
+  );
+
+  return {
+    reconciled,
+    addedCount,
+    updatedCount,
+    removedCount,
+    hasChanged,
+  };
+}
+
+

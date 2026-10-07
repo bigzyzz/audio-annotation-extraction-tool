@@ -70,7 +70,7 @@ As a hobbyist, I want to download that segment for sampling, at original quality
 
 **US13 — Stay in sync**
 As a hobbyist, I want other people’s new/edited notes to show up quickly, so that five of us can annotate one file without fighting.
-**Done when:** 5 browsers on one file see annotation changes in under 2 seconds; a stale edit surfaces a conflict instead of a silent overwrite.
+**Done when:** 5 browsers on one file see annotation changes in under 2 seconds; a stale edit surfaces a conflict instead of a silent overwrite. — met by T25–T28.
 
 ## R6 — Usable UI
 

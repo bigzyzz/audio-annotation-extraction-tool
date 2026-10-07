@@ -3,10 +3,14 @@ import { describe, it } from "node:test";
 import type { AnnotationListItem } from "../components/annotation-panel";
 import {
   annotationRowFromPayload,
+  calculateBackoffDelay,
   detectEditConflict,
   discardDraftForServer,
+  evaluateLatencyGrade,
   mergeAnnotationRealtimeEvent,
+  reconcileAnnotationsOnReconnect,
   reconcileDraftWithServer,
+  recordLatencySample,
 } from "./annotation-realtime";
 
 const FILE = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -172,4 +176,131 @@ describe("discardDraftForServer", () => {
     });
   });
 });
+
+describe("calculateBackoffDelay", () => {
+  it("returns 0 for attempt 0 or negative", () => {
+    assert.equal(calculateBackoffDelay(0), 0);
+    assert.equal(calculateBackoffDelay(-1), 0);
+  });
+
+  it("calculates exponential growth with baseMs", () => {
+    // With jitterRatio = 0, delay is exact baseMs * 2^(attempt - 1)
+    assert.equal(calculateBackoffDelay(1, 500, 8000, 0), 500);
+    assert.equal(calculateBackoffDelay(2, 500, 8000, 0), 1000);
+    assert.equal(calculateBackoffDelay(3, 500, 8000, 0), 2000);
+    assert.equal(calculateBackoffDelay(4, 500, 8000, 0), 4000);
+  });
+
+  it("caps backoff delay at maxMs", () => {
+    assert.equal(calculateBackoffDelay(10, 500, 8000, 0), 8000);
+    assert.equal(calculateBackoffDelay(20, 500, 5000, 0), 5000);
+  });
+
+  it("includes jitter within the specified jitterRatio", () => {
+    const delay = calculateBackoffDelay(2, 1000, 8000, 0.25);
+    // Base is 2000, jitter up to 500
+    assert.ok(delay >= 2000 && delay <= 2500);
+  });
+});
+
+describe("evaluateLatencyGrade", () => {
+  it("grades offline when latency is null", () => {
+    const evalResult = evaluateLatencyGrade(null);
+    assert.equal(evalResult.grade, "offline");
+    assert.equal(evalResult.slaPass, false);
+  });
+
+  it("grades optimal when latency is below 300ms", () => {
+    const evalResult = evaluateLatencyGrade(120);
+    assert.equal(evalResult.grade, "optimal");
+    assert.equal(evalResult.slaPass, true);
+  });
+
+  it("grades acceptable when latency is between 300ms and 2000ms SLA", () => {
+    const evalResult = evaluateLatencyGrade(850);
+    assert.equal(evalResult.grade, "acceptable");
+    assert.equal(evalResult.slaPass, true);
+  });
+
+  it("grades lagging and fails SLA when latency exceeds 2000ms (R7 / RK1)", () => {
+    const evalResult = evaluateLatencyGrade(2500);
+    assert.equal(evalResult.grade, "lagging");
+    assert.equal(evalResult.slaPass, false);
+  });
+});
+
+describe("recordLatencySample", () => {
+  it("adds samples and computes average ping", () => {
+    const r1 = recordLatencySample([], 100, 5);
+    assert.deepEqual(r1.samples, [100]);
+    assert.equal(r1.avgPingMs, 100);
+
+    const r2 = recordLatencySample(r1.samples, 200, 5);
+    assert.deepEqual(r2.samples, [100, 200]);
+    assert.equal(r2.avgPingMs, 150);
+  });
+
+  it("slides window to maxSamples", () => {
+    const existing = [10, 20, 30];
+    const res = recordLatencySample(existing, 40, 3);
+    assert.deepEqual(res.samples, [20, 30, 40]);
+    assert.equal(res.avgPingMs, 30);
+  });
+});
+
+describe("reconcileAnnotationsOnReconnect", () => {
+  it("detects newly added server annotations during offline period", () => {
+    const local = [note({ id: "1", version: 1, start_seconds: 2 })];
+    const server = [
+      note({ id: "1", version: 1, start_seconds: 2 }),
+      note({ id: "2", version: 1, start_seconds: 5 }),
+    ];
+
+    const result = reconcileAnnotationsOnReconnect(local, server);
+    assert.equal(result.hasChanged, true);
+    assert.equal(result.addedCount, 1);
+    assert.equal(result.updatedCount, 0);
+    assert.equal(result.removedCount, 0);
+    assert.equal(result.reconciled.length, 2);
+  });
+
+  it("detects modified annotations with bumped versions", () => {
+    const local = [note({ id: "1", version: 1, comment: "old" })];
+    const server = [note({ id: "1", version: 2, comment: "updated while offline" })];
+
+    const result = reconcileAnnotationsOnReconnect(local, server);
+    assert.equal(result.hasChanged, true);
+    assert.equal(result.addedCount, 0);
+    assert.equal(result.updatedCount, 1);
+    assert.equal(result.removedCount, 0);
+    assert.equal(result.reconciled[0].version, 2);
+  });
+
+  it("detects deleted annotations removed on server", () => {
+    const local = [
+      note({ id: "1", version: 1 }),
+      note({ id: "2", version: 1 }),
+    ];
+    const server = [note({ id: "1", version: 1 })];
+
+    const result = reconcileAnnotationsOnReconnect(local, server);
+    assert.equal(result.hasChanged, true);
+    assert.equal(result.addedCount, 0);
+    assert.equal(result.updatedCount, 0);
+    assert.equal(result.removedCount, 1);
+    assert.equal(result.reconciled.length, 1);
+  });
+
+  it("reports hasChanged: false when state is already identical", () => {
+    const local = [note({ id: "1", version: 1 })];
+    const server = [note({ id: "1", version: 1 })];
+
+    const result = reconcileAnnotationsOnReconnect(local, server);
+    assert.equal(result.hasChanged, false);
+    assert.equal(result.addedCount, 0);
+    assert.equal(result.updatedCount, 0);
+    assert.equal(result.removedCount, 0);
+  });
+});
+
 
