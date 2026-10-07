@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T26 (R7): Presence broadcast & ephemeral signal throttling. Implemented live collaborator presence and throttled playhead broadcasting. Built `CollaboratorPresenceBadge` with real-time active user avatars, initials, and distinct color palette. Added `parsePresenceState` and `createThrottler` (100ms throttle with trailing edge guarantee) in `apps/web/src/lib/presence.ts`. Wired Supabase Realtime Presence channel and playhead broadcasting into `/files/[id]` and `FilePlayerPanel` without database overhead. 8 unit tests in `presence.test.ts`. Closes #64.
 - T25 (R7): Automated multi-client concurrency benchmark suite. Implemented headless load & latency benchmarking harness in `scripts/benchmark-concurrency.ts` supporting both live Supabase Realtime channels and simulated network mesh. Asserts p50, p90, p95, and max sync latency across 5 concurrent users under staggered mutations, simultaneous 5-client bursts, rapid OCC updates, and deletes. Proves <2.0s SLA compliance (p95 ~110ms with 100% success rate). 7 unit tests in `scripts/benchmark-concurrency.test.ts`. RK1 → Mitigated. Closes #63.
 - T20 (R4/R8): Extraction UI, region preview & download panel. Built `ExtractionPanel` (lossless slice form with duration readout, playhead stamping, timeline region sync, "▶ Preview Cut" via WaveSurfer, submit progress, job history with status badges, and download triggers for audio cuts + annotations JSON sidecars). Integrated into `/files/[id]`, `FilePlayerPanel`, and `WaveformPlayer`. 8 unit tests in `extraction-panel.test.ts`. Closes #52 and parent #7 (Epic R4/R8 complete).
 - T19 (R4): Extraction client & signed download helpers. Web client helpers in `apps/web/src/lib/extraction.ts` (`requestExtractionJob`, `getExtractionJobs`, `createExtractionDownloadUrls`, `validateExtractionTimes`, `validateExtractionStoragePath`). 14 unit tests in `apps/web/src/lib/extraction.test.ts`. Closes #51.
@@ -103,7 +104,7 @@ R6 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #8):
 R7 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #9):
 
 - [x] **T25** R7 Automated multi-client concurrency benchmark suite — #63 `feat/r7-t25-concurrency-benchmark`
-- [ ] **T26** R7 Presence broadcast & ephemeral signal throttling — #64 `feat/r7-t26-presence-throttling`
+- [x] **T26** R7 Presence broadcast & ephemeral signal throttling — #64 `feat/r7-t26-presence-throttling`
 - [ ] **T27** R7 Concurrent write burst & OCC conflict resilience — #65 `feat/r7-t27-occ-conflict-resilience`
 - [ ] **T28** R7 Network resilience, auto-reconnection & latency telemetry — #66 `feat/r7-t28-reconnect-telemetry`
 

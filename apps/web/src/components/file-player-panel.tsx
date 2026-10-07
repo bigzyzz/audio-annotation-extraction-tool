@@ -22,6 +22,12 @@ import {
   mergeAnnotationRealtimeEvent,
   type AnnotationRealtimeEvent,
 } from "@/lib/annotation-realtime";
+import { CollaboratorPresenceBadge } from "@/components/collaborator-presence";
+import {
+  parsePresenceState,
+  createThrottler,
+  type CollaboratorPresence,
+} from "@/lib/presence";
 
 const POLL_MS = 2000;
 const PLAYHEAD_THROTTLE_MS = 200;
@@ -39,9 +45,14 @@ export type FilePlayerRow = Pick<
 type FilePlayerPanelProps = {
   initialFile: FilePlayerRow;
   initialJobs?: ExtractionJob[];
+  currentUser?: { id: string; username: string };
 };
 
-export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPanelProps) {
+export function FilePlayerPanel({
+  initialFile,
+  initialJobs = [],
+  currentUser,
+}: FilePlayerPanelProps) {
   const [file, setFile] = useState<FilePlayerRow>(initialFile);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [peaks, setPeaks] = useState<WaveformPeaksDocument | null>(null);
@@ -56,9 +67,34 @@ export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPan
   );
   const [previewRequest, setPreviewRequest] =
     useState<WaveformPreviewRequest | null>(null);
+  const [collaborators, setCollaborators] = useState<CollaboratorPresence[]>([]);
   const playheadStampRef = useRef(0);
   const seekTokenRef = useRef(0);
   const previewTokenRef = useRef(0);
+  const playheadBroadcasterRef = useRef<ReturnType<typeof createThrottler<number>> | null>(null);
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+
+  useEffect(() => {
+    playheadBroadcasterRef.current = createThrottler<number>((seconds) => {
+      const ch = channelRef.current;
+      if (ch && currentUser) {
+        void ch.send({
+          type: "broadcast",
+          event: "playhead",
+          payload: {
+            userId: currentUser.id,
+            username: currentUser.username,
+            playheadSeconds: seconds,
+            timestamp: Date.now(),
+          },
+        });
+      }
+    }, 100);
+
+    return () => {
+      playheadBroadcasterRef.current?.cancel();
+    };
+  }, [currentUser]);
 
   const loadFile = useCallback(async () => {
     const supabase = createClient();
@@ -174,8 +210,36 @@ export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPan
       setAnnotations(result.annotations);
     });
 
-    const channel = supabase
-      .channel(`annotations:${initialFile.id}`)
+    const channel = supabase.channel(`annotations:${initialFile.id}`, {
+      config: {
+        presence: {
+          key: currentUser?.id ?? `anon-${Math.random().toString(36).substring(2, 8)}`,
+        },
+      },
+    });
+    channelRef.current = channel;
+
+    const syncPresence = () => {
+      const state = channel.presenceState();
+      setCollaborators(parsePresenceState(state, currentUser?.id));
+    };
+
+    channel
+      .on("presence", { event: "sync" }, syncPresence)
+      .on("presence", { event: "join" }, syncPresence)
+      .on("presence", { event: "leave" }, syncPresence)
+      .on("broadcast", { event: "playhead" }, ({ payload }) => {
+        if (!payload || typeof payload !== "object") return;
+        const { userId, playheadSeconds } = payload as {
+          userId?: string;
+          playheadSeconds?: number;
+        };
+        if (userId && typeof playheadSeconds === "number") {
+          setCollaborators((prev) =>
+            prev.map((c) => (c.userId === userId ? { ...c, playheadSeconds } : c)),
+          );
+        }
+      })
       .on(
         "postgres_changes",
         {
@@ -205,22 +269,34 @@ export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPan
           }
         },
       )
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED" && currentUser) {
+          await channel.track({
+            userId: currentUser.id,
+            username: currentUser.username,
+            joinedAt: Date.now(),
+            lastActiveAt: Date.now(),
+          });
+        }
+      });
 
     return () => {
       cancelled = true;
+      channelRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [initialFile.id, loadNotes]);
+  }, [initialFile.id, loadNotes, currentUser]);
 
   const stampTime = useCallback((seconds: number) => {
     setCurrentTime(seconds);
+    playheadBroadcasterRef.current?.invoke(seconds);
   }, []);
 
   const jumpTo = useCallback((seconds: number) => {
     setCurrentTime(seconds);
     seekTokenRef.current += 1;
     setSeekRequest({ seconds, token: seekTokenRef.current });
+    playheadBroadcasterRef.current?.invoke(seconds);
   }, []);
 
   const onTimeUpdate = useCallback((seconds: number) => {
@@ -228,6 +304,7 @@ export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPan
     if (now - playheadStampRef.current < PLAYHEAD_THROTTLE_MS) return;
     playheadStampRef.current = now;
     setCurrentTime(seconds);
+    playheadBroadcasterRef.current?.invoke(seconds);
   }, []);
 
   const startAddAnnotation = useCallback(() => {
@@ -277,13 +354,19 @@ export function FilePlayerPanel({ initialFile, initialJobs = [] }: FilePlayerPan
   return (
     <div className="flex w-full flex-col gap-10">
       <div className="flex w-full flex-col gap-6">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-            {file.filename}
-          </h1>
-          <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400 font-mono">
-            {file.format}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+              {file.filename}
+            </h1>
+            <span className="text-sm uppercase text-zinc-600 dark:text-zinc-400 font-mono">
+              {file.format}
+            </span>
+          </div>
+          <CollaboratorPresenceBadge
+            collaborators={collaborators}
+            currentUserId={currentUser?.id}
+          />
         </div>
 
         {error ? (
