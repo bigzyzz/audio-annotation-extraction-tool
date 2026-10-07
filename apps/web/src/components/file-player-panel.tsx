@@ -19,10 +19,17 @@ import { ExtractionPanel } from "@/components/extraction-panel";
 import { roundAnnotationTime } from "@/lib/annotations";
 import {
   annotationRowFromPayload,
+  calculateBackoffDelay,
+  evaluateLatencyGrade,
   mergeAnnotationRealtimeEvent,
+  reconcileAnnotationsOnReconnect,
+  recordLatencySample,
   type AnnotationRealtimeEvent,
+  type LatencyTelemetry,
+  type RealtimeConnectionStatus,
 } from "@/lib/annotation-realtime";
 import { CollaboratorPresenceBadge } from "@/components/collaborator-presence";
+import { SyncStatusIndicator } from "@/components/sync-status-indicator";
 import {
   parsePresenceState,
   createThrottler,
@@ -68,11 +75,27 @@ export function FilePlayerPanel({
   const [previewRequest, setPreviewRequest] =
     useState<WaveformPreviewRequest | null>(null);
   const [collaborators, setCollaborators] = useState<CollaboratorPresence[]>([]);
+  const [connectionStatus, setConnectionStatus] =
+    useState<RealtimeConnectionStatus>("connecting");
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [telemetry, setTelemetry] = useState<LatencyTelemetry>({
+    lastPingMs: null,
+    avgPingMs: null,
+    samples: [],
+    grade: "offline",
+    slaPass: true,
+    lastSyncedAt: null,
+  });
   const playheadStampRef = useRef(0);
   const seekTokenRef = useRef(0);
   const previewTokenRef = useRef(0);
   const playheadBroadcasterRef = useRef<ReturnType<typeof createThrottler<number>> | null>(null);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const clientIdRef = useRef<string>(
+    currentUser?.id ?? `anon-${initialFile.id.slice(0, 8)}`,
+  );
 
   useEffect(() => {
     playheadBroadcasterRef.current = createThrottler<number>((seconds) => {
@@ -120,11 +143,21 @@ export function FilePlayerPanel({
     setFile(data);
   }, [initialFile.id]);
 
-  const loadNotes = useCallback(async () => {
+  const reconcileServerState = useCallback(async () => {
     const supabase = createClient();
     const result = await fetchAnnotationsForFile(supabase, initialFile.id);
     if (!result.ok) return;
-    setAnnotations(result.annotations);
+    setAnnotations((current) => {
+      const { reconciled } = reconcileAnnotationsOnReconnect(
+        current,
+        result.annotations,
+      );
+      return reconciled;
+    });
+    setTelemetry((prev) => ({
+      ...prev,
+      lastSyncedAt: Date.now(),
+    }));
   }, [initialFile.id]);
 
   useEffect(() => {
@@ -208,84 +241,204 @@ export function FilePlayerPanel({
     void fetchAnnotationsForFile(supabase, initialFile.id).then((result) => {
       if (cancelled || !result.ok) return;
       setAnnotations(result.annotations);
+      setTelemetry((prev) => ({ ...prev, lastSyncedAt: Date.now() }));
     });
 
-    const channel = supabase.channel(`annotations:${initialFile.id}`, {
-      config: {
-        presence: {
-          key: currentUser?.id ?? `anon-${Math.random().toString(36).substring(2, 8)}`,
-        },
-      },
-    });
-    channelRef.current = channel;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    const syncPresence = () => {
-      const state = channel.presenceState();
-      setCollaborators(parsePresenceState(state, currentUser?.id));
-    };
+    function cleanupChannel() {
+      if (channel) {
+        channelRef.current = null;
+        void supabase.removeChannel(channel);
+        channel = null;
+      }
+    }
 
-    channel
-      .on("presence", { event: "sync" }, syncPresence)
-      .on("presence", { event: "join" }, syncPresence)
-      .on("presence", { event: "leave" }, syncPresence)
-      .on("broadcast", { event: "playhead" }, ({ payload }) => {
-        if (!payload || typeof payload !== "object") return;
-        const { userId, playheadSeconds } = payload as {
-          userId?: string;
-          playheadSeconds?: number;
-        };
-        if (userId && typeof playheadSeconds === "number") {
-          setCollaborators((prev) =>
-            prev.map((c) => (c.userId === userId ? { ...c, playheadSeconds } : c)),
-          );
-        }
-      })
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "annotations",
-          filter: `audio_file_id=eq.${initialFile.id}`,
+    function setupSubscription(attempt = 0) {
+      if (cancelled) return;
+      cleanupChannel();
+
+      if (attempt > 0) {
+        setConnectionStatus("reconnecting");
+        setReconnectAttempt(attempt);
+      } else {
+        setConnectionStatus("connecting");
+      }
+
+      channel = supabase.channel(`annotations:${initialFile.id}`, {
+        config: {
+          presence: {
+            key: currentUser?.id ?? clientIdRef.current,
+          },
         },
-        (payload) => {
-          const eventType = payload.eventType as AnnotationRealtimeEvent;
-          const raw =
-            eventType === "DELETE"
-              ? (payload.old as Record<string, unknown>)
-              : (payload.new as Record<string, unknown>);
-          const mapped = annotationRowFromPayload(raw ?? {});
-          if (!mapped || mapped.audio_file_id !== initialFile.id) {
-            void loadNotes();
+      });
+      channelRef.current = channel;
+
+      const syncPresence = () => {
+        if (!channel) return;
+        const state = channel.presenceState();
+        setCollaborators(parsePresenceState(state, currentUser?.id));
+      };
+
+      channel
+        .on("presence", { event: "sync" }, syncPresence)
+        .on("presence", { event: "join" }, syncPresence)
+        .on("presence", { event: "leave" }, syncPresence)
+        .on("broadcast", { event: "playhead" }, ({ payload }) => {
+          if (!payload || typeof payload !== "object") return;
+          const { userId, playheadSeconds } = payload as {
+            userId?: string;
+            playheadSeconds?: number;
+          };
+          if (userId && typeof playheadSeconds === "number") {
+            setCollaborators((prev) =>
+              prev.map((c) => (c.userId === userId ? { ...c, playheadSeconds } : c)),
+            );
+          }
+        })
+        .on("broadcast", { event: "ping" }, ({ payload }) => {
+          if (!payload || typeof payload !== "object") return;
+          const { senderId, timestamp } = payload as {
+            senderId?: string;
+            timestamp?: number;
+          };
+          // Round-trip latency calculation from self-broadcast echo
+          if (senderId === clientIdRef.current && typeof timestamp === "number") {
+            const rtt = Math.max(1, Date.now() - timestamp);
+            setTelemetry((prev) => {
+              const { samples, avgPingMs } = recordLatencySample(prev.samples, rtt);
+              const { grade, slaPass } = evaluateLatencyGrade(rtt);
+              return {
+                ...prev,
+                lastPingMs: rtt,
+                avgPingMs,
+                samples,
+                grade,
+                slaPass,
+              };
+            });
+          }
+        })
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "annotations",
+            filter: `audio_file_id=eq.${initialFile.id}`,
+          },
+          (payload) => {
+            const eventType = payload.eventType as AnnotationRealtimeEvent;
+            const raw =
+              eventType === "DELETE"
+                ? (payload.old as Record<string, unknown>)
+                : (payload.new as Record<string, unknown>);
+            const mapped = annotationRowFromPayload(raw ?? {});
+            if (!mapped || mapped.audio_file_id !== initialFile.id) {
+              void reconcileServerState();
+              return;
+            }
+
+            setAnnotations((current) =>
+              mergeAnnotationRealtimeEvent(current, eventType, mapped),
+            );
+
+            if (eventType !== "DELETE" && !mapped.author_username) {
+              void reconcileServerState();
+            }
+          },
+        )
+        .subscribe(async (status) => {
+          if (cancelled) return;
+
+          if (status === "SUBSCRIBED") {
+            setConnectionStatus("connected");
+            setReconnectAttempt(0);
+
+            // Re-fetch delta annotations on reconnect to prevent state drift
+            if (attempt > 0) {
+              void reconcileServerState();
+            }
+
+            if (currentUser) {
+              await channel?.track({
+                userId: currentUser.id,
+                username: currentUser.username,
+                joinedAt: Date.now(),
+                lastActiveAt: Date.now(),
+              });
+            }
             return;
           }
 
-          setAnnotations((current) =>
-            mergeAnnotationRealtimeEvent(current, eventType, mapped),
-          );
-
-          if (eventType !== "DELETE" && !mapped.author_username) {
-            void loadNotes();
+          if (
+            status === "TIMED_OUT" ||
+            status === "CLOSED" ||
+            status === "CHANNEL_ERROR"
+          ) {
+            setConnectionStatus("reconnecting");
+            const nextAttempt = attempt + 1;
+            setReconnectAttempt(nextAttempt);
+            const delay = calculateBackoffDelay(nextAttempt);
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            reconnectTimeoutRef.current = setTimeout(() => {
+              setupSubscription(nextAttempt);
+            }, delay);
           }
-        },
-      )
-      .subscribe(async (status) => {
-        if (status === "SUBSCRIBED" && currentUser) {
-          await channel.track({
-            userId: currentUser.id,
-            username: currentUser.username,
-            joinedAt: Date.now(),
-            lastActiveAt: Date.now(),
-          });
+        });
+    }
+
+    setupSubscription(0);
+
+    // Heartbeat ping broadcast every 10 seconds (US13)
+    pingIntervalRef.current = setInterval(() => {
+      const ch = channelRef.current;
+      if (ch) {
+        void ch.send({
+          type: "broadcast",
+          event: "ping",
+          payload: {
+            senderId: clientIdRef.current,
+            timestamp: Date.now(),
+          },
+        });
+      }
+    }, 10000);
+
+    // Online/offline window listeners
+    const handleOnline = () => {
+      setupSubscription(1);
+      void reconcileServerState();
+    };
+
+    const handleOffline = () => {
+      setConnectionStatus("disconnected");
+    };
+
+    // Tab visibility listener (hibernation recovery)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void reconcileServerState();
+        if (channelRef.current == null) {
+          setupSubscription(1);
         }
-      });
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       cancelled = true;
-      channelRef.current = null;
-      void supabase.removeChannel(channel);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanupChannel();
     };
-  }, [initialFile.id, loadNotes, currentUser]);
+  }, [initialFile.id, reconcileServerState, currentUser]);
 
   const stampTime = useCallback((seconds: number) => {
     setCurrentTime(seconds);
@@ -363,10 +516,22 @@ export function FilePlayerPanel({
               {file.format}
             </span>
           </div>
-          <CollaboratorPresenceBadge
-            collaborators={collaborators}
-            currentUserId={currentUser?.id}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <SyncStatusIndicator
+              status={connectionStatus}
+              telemetry={telemetry}
+              reconnectAttempt={reconnectAttempt}
+              onManualSync={reconcileServerState}
+              onManualReconnect={() => {
+                setReconnectAttempt(1);
+                void reconcileServerState();
+              }}
+            />
+            <CollaboratorPresenceBadge
+              collaborators={collaborators}
+              currentUserId={currentUser?.id}
+            />
+          </div>
         </div>
 
         {error ? (
@@ -428,7 +593,7 @@ export function FilePlayerPanel({
           selectedRange={draftRange}
           onRangeChange={setDraftRange}
           annotations={annotations}
-          onNeedRefresh={loadNotes}
+          onNeedRefresh={reconcileServerState}
           onJumpTo={jumpTo}
           onEditingChange={handleEditingChange}
           onPreviewRange={previewRange}
