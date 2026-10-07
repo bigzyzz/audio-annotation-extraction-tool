@@ -512,12 +512,99 @@ Title: T24: R6 UI Consistency, Empty States & Accessibility Pass
 
 ---
 
-## Later (not split yet)
+## Epic: R7 Concurrent Performance & Sync Latency (US13)
 
-- R7: 5-user / <2s check (US13, after R3/R6)
+Parent: GitHub #9. Close #9 when T25–T28 are Done. RK1 → Mitigated when multi-client latency benchmark passes. Issues: T25 #63, T26 #64, T27 #65, T28 #66.
+
+**R7 contract (all four agree before code):**
+- Target: 5 concurrent annotators per audio file with sub-2.0s round-trip synchronization latency
+- Optimistic Concurrency Control (OCC): edits rejected if `version != clientVersion`; no silent overwrites
+- Ephemeral signals (e.g. presence, live cursors): throttled (50–100ms) over Realtime Broadcast/Presence, not committed to Postgres
+- Automated quantitative benchmarking script to prove <2.0s p95 latency under simulated multi-user load
+
+### T25 — Automated Multi-Client Concurrency Benchmark Suite
+
+**Assignee:** (`feat/r7-t25-concurrency-benchmark`) — #63  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Implement an automated load and latency benchmarking suite simulating 5 concurrent annotators (US13):
+- Build a headless test harness (Node.js / Supabase Realtime client simulation) that connects 5 concurrent sessions to a single audio file.
+- Emit staggered and simultaneous annotation mutations (INSERT, UPDATE, DELETE) across all 5 clients.
+- Measure end-to-end round-trip latency from dispatch on client A to receipt and DOM/state reconciliation on clients B, C, D, and E.
+- Assert strict performance criteria: p50, p95, and maximum latency must remain strictly under 2.0 seconds (req R7, RK1).
+- Generate a summary benchmark report with latency histograms and pass/fail thresholds.
+
+**Touch:** `scripts/benchmark-concurrency.ts`, `package.json`.
+
+**Done when:** Automated script runs 5 concurrent client sessions against a test file and proves sync latency < 2.0s with zero dropped updates.
+
+```
+Title: T25: R7 Automated Multi-Client Concurrency Benchmark Suite
+```
+
+### T26 — Presence Broadcast & Ephemeral Signal Throttling
+
+**Assignee:** (`feat/r7-t26-presence-throttling`) — #64  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Track active concurrent annotators and throttle ephemeral signal broadcast to prevent channel flooding (US13):
+- Integrate Supabase Realtime Presence channel on `/files/[id]` to broadcast and track active annotator avatars/usernames without database overhead.
+- Display a live collaborator badge (e.g. "3 users active on this track") in the file header.
+- Implement rate limiting and throttling (50–100ms throttle window) for ephemeral high-frequency broadcasts (such as live playhead scrubber positions).
+- Validate that presence broadcast traffic does not degrade annotation message sync speed or exceed free-tier WebSocket quotas (RK1, RK18).
+
+**Touch:** `apps/web/src/components/collaborator-presence.tsx`, `apps/web/src/lib/annotation-realtime.ts`, `apps/web/src/components/file-player-panel.tsx`.
+
+**Done when:** Multiple concurrent browser sessions see active collaborator presence indicators in real time; ephemeral traffic is throttled without inducing WebSocket queue lag.
+
+```
+Title: T26: R7 Presence Broadcast & Ephemeral Signal Throttling
+```
+
+### T27 — Concurrent Write Burst & OCC Conflict Resilience
+
+**Assignee:** (`feat/r7-t27-occ-conflict-resilience`) — #65  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Harden optimistic concurrency control and client state reconciliation under concurrent write bursts (US13):
+- Test and handle simultaneous annotation edit collisions when two or more users attempt to modify the same annotation version simultaneously.
+- Verify that Postgres `bump_annotation_version` trigger and OCC filter (`.eq("version", clientVersion)`) reject stale writes without race conditions or silent overwrites.
+- Ensure the losing client receives a clear conflict indicator and automatically synchronizes to the winning version without loss of other local state.
+- Measure and verify that database transaction locks remain sub-500ms during simultaneous write bursts from 5 users (RK8).
+
+**Touch:** `apps/web/src/lib/annotations.ts`, `apps/web/src/components/annotation-panel.tsx`, `apps/web/src/lib/annotation-realtime.ts`.
+
+**Done when:** Stale concurrent edits are rejected reliably by OCC, clients reconcile instantly without UI deadlock, and no edits silently overwrite.
+
+```
+Title: T27: R7 Concurrent Write Burst & OCC Conflict Resilience
+```
+
+### T28 — Network Resilience, Auto-Reconnection & Latency Telemetry
+
+**Assignee:** (`feat/r7-t28-reconnect-telemetry`) — #66  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Implement connection health monitoring, automatic WebSocket re-subscription, and latency telemetry (US13):
+- Detect network flaps, tab hibernation, and WebSocket disconnections in Supabase Realtime channels.
+- Implement automatic exponential backoff reconnection and channel re-subscription.
+- Run state reconciliation on re-connect (fetch delta annotations created during the offline interval so client state never drifts).
+- Add developer/diagnostic latency telemetry badge (displaying live ping, round-trip message receipt latency, and connection status).
+
+**Touch:** `apps/web/src/lib/annotation-realtime.ts`, `apps/web/src/components/sync-status-indicator.tsx`.
+
+**Done when:** Dropped connections automatically recover and sync missing annotations upon reconnection; live latency telemetry confirms <2.0s sync during active sessions.
+
+```
+Title: T28: R7 Network Resilience, Auto-Reconnection & Latency Telemetry
+```
 
 ---
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. T21–T24 opened as #59–#62 under parent #8. Add them to the GitHub Project **Todo** column. One person each.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. T21–T24 opened as #59–#62 under parent #8. T25–T28 opened as #63–#66 under parent #9. Add them to the GitHub Project **Todo** column. One person each.

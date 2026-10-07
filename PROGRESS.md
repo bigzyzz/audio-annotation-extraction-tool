@@ -99,9 +99,12 @@ R6 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #8):
 - [ ] **T23** R6 Keyboard shortcuts & power-user efficiency — #61 `feat/r6-t23-keyboard-shortcuts`
 - [ ] **T24** R6 UI consistency, empty states & accessibility pass — #62 `feat/r6-t24-ui-consistency-a11y`
 
-Then:
+R7 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #9):
 
-- [ ] R7: latency validation under 5 concurrent users (<2s benchmark)
+- [ ] **T25** R7 Automated multi-client concurrency benchmark suite — #63 `feat/r7-t25-concurrency-benchmark`
+- [ ] **T26** R7 Presence broadcast & ephemeral signal throttling — #64 `feat/r7-t26-presence-throttling`
+- [ ] **T27** R7 Concurrent write burst & OCC conflict resilience — #65 `feat/r7-t27-occ-conflict-resilience`
+- [ ] **T28** R7 Network resilience, auto-reconnection & latency telemetry — #66 `feat/r7-t28-reconnect-telemetry`
 
 ## Decisions Log
 
