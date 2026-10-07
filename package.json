@@ -10,7 +10,15 @@
     "dev:web": "pnpm --filter web dev",
     "dev:worker": "pnpm --filter worker dev",
     "seed:demo": "pnpm --filter worker exec tsx src/seed-demo.ts",
+    "benchmark": "tsx scripts/benchmark-concurrency.ts",
+    "benchmark:mock": "tsx scripts/benchmark-concurrency.ts --mock",
+    "test:benchmark": "tsx --test scripts/benchmark-concurrency.test.ts",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.0"
   }
 }

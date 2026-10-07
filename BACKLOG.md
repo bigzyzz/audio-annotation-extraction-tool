@@ -524,7 +524,7 @@ Parent: GitHub #9. Close #9 when T25–T28 are Done. RK1 → Mitigated when mult
 
 ### T25 — Automated Multi-Client Concurrency Benchmark Suite
 
-**Assignee:** (`feat/r7-t25-concurrency-benchmark`) — #63  
+**Assignee:** (`feat/r7-t25-concurrency-benchmark`) — #63 — **Done** (script + tests + SLA verified)  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 
