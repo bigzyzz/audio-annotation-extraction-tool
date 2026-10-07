@@ -420,13 +420,104 @@ Title: T20: R4/R8 Extraction UI, Region Preview & Download Panel
 
 ---
 
+## Epic: R6 Nielsen Usability Heuristics Pass (US14)
+
+Parent: GitHub #8. Close #8 when T21–T24 are Done. RK6 → Mitigated when UI heuristics pass lands. Issues: T21 #59, T22 #60, T23 #61, T24 #62.
+
+**R6 contract (all four agree before code):**
+- Adhere to Jakob Nielsen's 10 Usability Heuristics across the completed application
+- US14 acceptance criteria: pending actions disable submit; system state and async progress visible; destructive actions require confirmation or can be cancelled; actionable recovery feedback on error states
+- Keyboard accessibility: Spacebar play/pause, seek shortcuts, `?` keyboard cheat sheet
+- Empty states: welcoming, actionable copy across library, search, and annotations
+- Touch `apps/web/` frontend components only — no schema or worker pipeline changes
+
+### T21 — Status Visibility & Recovery Messaging
+
+**Assignee:** (`feat/r6-t21-status-visibility`) — #59  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Improve system visibility and user recovery feedback across asynchronous workflows (US14):
+- Add real-time sync / connection state indicator on `/files/[id]` (e.g. connected, reconnecting, offline).
+- Implement accessible loading skeletons and progress spinners during worker waveform peak generation, audio upload, and extraction queue polling.
+- Replace opaque or raw system error alerts with human-readable, actionable recovery guidance across auth, upload, annotation (OCC conflict handling), and extraction.
+- Introduce non-intrusive toast / banner notifications for asynchronous completions (e.g. extraction completed ready to download).
+
+**Touch:** `apps/web/src/components/`, `apps/web/src/app/files/[id]/page.tsx`, `apps/web/src/lib/`.
+
+**Done when:** Users receive immediate, visible status feedback for all async states, network changes, and actionable recovery steps on errors.
+
+```
+Title: T21: R6 Status Visibility & Recovery Messaging
+```
+
+### T22 — Error Prevention & Destructive Action Safeguards
+
+**Assignee:** (`feat/r6-t22-error-prevention`) — #60  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Prevent user slips/mistakes and provide safe emergency exits before irreversible actions (US14):
+- Add explicit two-step confirmation dialogs or undo mechanisms for destructive actions (deleting annotations and uploaded audio files).
+- Implement live inline validation on timestamp input bounds (preventing start >= end, start < 0, or end > audio duration) before submission.
+- Guard against accidental navigation / modal closure when forms contain unsaved annotation edits (dirty form warning).
+- Enforce disabled submit states and prevention of double-clicks during in-flight network requests.
+
+**Touch:** `apps/web/src/components/annotation-panel.tsx`, `apps/web/src/components/extraction-panel.tsx`, `apps/web/src/components/file-list.tsx`.
+
+**Done when:** Accidental deletions require explicit confirmation, timestamp forms proactively block invalid bounds before submit, and unsaved changes cannot be lost inadvertently.
+
+```
+Title: T22: R6 Error Prevention & Destructive Action Safeguards
+```
+
+### T23 — Keyboard Shortcuts & Power-User Efficiency
+
+**Assignee:** (`feat/r6-t23-keyboard-shortcuts`) — #61  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Empower both novice and power users with intuitive keyboard transport and shortcuts (US14):
+- Implement keyboard navigation shortcuts for playback and timeline inspection: Spacebar (Play/Pause), Left/Right Arrows (Seek ±1s / ±5s with Shift), J/K/L transport, 'M' (Stamp annotation marker at playhead), 'Esc' (Cancel active selection or close modal).
+- Add an accessible Keyboard Shortcuts cheat sheet / help modal toggled by pressing `?` or clicking a persistent help trigger.
+- Add one-click "Clear Selection" emergency exits for active WaveSurfer regions and active search query inputs.
+
+**Touch:** `apps/web/src/components/waveform-player.tsx`, `apps/web/src/components/file-player-panel.tsx`, `apps/web/src/components/search-field.tsx`.
+
+**Done when:** Users can fluidly scrub, play, stamp annotations, and cancel selections without touching a mouse; pressing `?` displays the shortcut reference.
+
+```
+Title: T23: R6 Keyboard Shortcuts & Power-User Efficiency
+```
+
+### T24 — UI Consistency, Empty States & Accessibility Pass
+
+**Assignee:** (`feat/r6-t24-ui-consistency-a11y`) — #62  
+**Blocked by:** nothing  
+**Blocks:** nothing  
+
+Harmonize UI aesthetics, typography, accessibility, and guidance across all pages (US14):
+- Standardize design tokens, spacing, button variants, and navigation breadcrumbs across `/`, `/upload`, `/files/[id]`, `/login`, and `/signup`.
+- Provide contextual, welcoming empty states with clear calls-to-action (empty library with "+ Upload track", empty search with clear suggestions, empty annotations with "Drag on waveform to annotate").
+- Audit and enhance accessibility (ARIA labels for audio playhead, waveform canvas, playback controls, and volume sliders; logical tab indexing; color contrast compliance).
+- Ensure intuitive, human-friendly time formatting (e.g. MM:SS.ms displays with hover tooltips) to avoid raw second recall.
+
+**Touch:** `apps/web/src/components/`, `apps/web/src/app/`.
+
+**Done when:** Visual hierarchy and design standards are unified across all routes; all empty states guide user action; screen readers and tab navigation work cleanly.
+
+```
+Title: T24: R6 UI Consistency, Empty States & Accessibility Pass
+```
+
+---
+
 ## Later (not split yet)
 
-- R6: Nielsen pass (US14, after UI exists)
-- R7: 5-user / <2s check (US13, after R3)
+- R7: 5-user / <2s check (US13, after R3/R6)
 
 ---
 
 ## Paste as GitHub Issues
 
-T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. Add them to the GitHub Project **Todo** column. One person each. T17 merge first for worker engine, T19 for web client.
+T5–T8 opened as #20–#23 under parent #5. T9–T12 opened as #28–#31 under parent #6. T13–T16 opened as #36–#39 under parent #10. T17–T20 opened as #49–#52 under parent #7. T21–T24 opened as #59–#62 under parent #8. Add them to the GitHub Project **Todo** column. One person each.

@@ -92,10 +92,16 @@ R4/R8 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #7
 - [x] **T19** R4 Extraction client & signed download helpers — #51 `feat/r4-t19-extraction-client`
 - [x] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
 
+R6 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #8):
+
+- [ ] **T21** R6 Status visibility & recovery messaging — #59 `feat/r6-t21-status-visibility`
+- [ ] **T22** R6 Error prevention & destructive action safeguards — #60 `feat/r6-t22-error-prevention`
+- [ ] **T23** R6 Keyboard shortcuts & power-user efficiency — #61 `feat/r6-t23-keyboard-shortcuts`
+- [ ] **T24** R6 UI consistency, empty states & accessibility pass — #62 `feat/r6-t24-ui-consistency-a11y`
+
 Then:
 
-- [ ] R6: usability heuristics pass on finished UI
-- [ ] R7: latency validation under 5 concurrent users
+- [ ] R7: latency validation under 5 concurrent users (<2s benchmark)
 
 ## Decisions Log
 
