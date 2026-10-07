@@ -16,6 +16,7 @@ Living task log. Update after every feature/session so the next prompt (human or
 
 ## Done
 
+- T20 (R4/R8): Extraction UI, region preview & download panel. Built `ExtractionPanel` (lossless slice form with duration readout, playhead stamping, timeline region sync, "▶ Preview Cut" via WaveSurfer, submit progress, job history with status badges, and download triggers for audio cuts + annotations JSON sidecars). Integrated into `/files/[id]`, `FilePlayerPanel`, and `WaveformPlayer`. 8 unit tests in `extraction-panel.test.ts`. Closes #52 and parent #7 (Epic R4/R8 complete).
 - T19 (R4): Extraction client & signed download helpers. Web client helpers in `apps/web/src/lib/extraction.ts` (`requestExtractionJob`, `getExtractionJobs`, `createExtractionDownloadUrls`, `validateExtractionTimes`, `validateExtractionStoragePath`). 14 unit tests in `apps/web/src/lib/extraction.test.ts`. Closes #51.
 - T18 (R4/R8): Worker extraction job runner & storage pipeline. Implemented extraction job polling, atomic job claiming (`pending` -> `processing`), storage downloading, T17 lossless cutting and sidecar annotation metadata generation, storage upload to `extractions/{audio_file_id}/{job_id}.*`, and status transition to `completed` or `failed`. Wired into worker poll loop in `apps/worker/src/index.ts`. Closes #50.
 - T17 (R4/R8): Worker lossless cutting engine. Pure FFmpeg audio cutting module + annotation metadata generator in `apps/worker/src/extract.ts`. Validates extraction bounds, builds deterministic stream-copy commands (`-c copy`, `-avoid_negative_ts make_zero`) without lossy re-encoding for WAV/MP3 (R8), and formats overlapping annotations into segment-relative JSON schema (R4). Shared extraction types in `@audio-tool/shared-types`. Closes #49.
@@ -89,7 +90,7 @@ R4/R8 split — one ticket per person, details in `BACKLOG.md` (parent GitHub #7
 - [x] **T17** R4/R8 Worker lossless cutting engine — #49 `feat/r4-t17-worker-cutting`
 - [x] **T18** R4/R8 Worker extraction job runner & storage pipeline — #50 `feat/r4-t18-worker-pipeline`
 - [x] **T19** R4 Extraction client & signed download helpers — #51 `feat/r4-t19-extraction-client`
-- [ ] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
+- [x] **T20** R4/R8 Extraction UI, region preview & download panel — #52 `feat/r4-t20-extraction-ui`
 
 Then:
 

@@ -3,6 +3,7 @@ import type {
   ExtractedAnnotation,
   ExtractedAnnotationMetadata,
 } from "@audio-tool/shared-types";
+import { getFfmpegBinaryPath } from "./lib/ffmpeg.js";
 
 export type AudioFormat = "mp3" | "wav";
 
@@ -127,9 +128,10 @@ export function buildFfmpegCutArgs(options: FfmpegCutOptions): string[] {
 /**
  * Spawns an FFmpeg child process to execute the stream copy.
  */
-export function executeFfmpegCut(args: string[]): Promise<void> {
+export function executeFfmpegCut(args: string[], binaryPath?: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const proc = spawn("ffmpeg", args, {
+    const ffmpegBin = binaryPath || getFfmpegBinaryPath();
+    const proc = spawn(ffmpegBin, args, {
       stdio: ["ignore", "pipe", "pipe"],
     });
 

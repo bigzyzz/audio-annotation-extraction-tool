@@ -399,7 +399,7 @@ Title: T19: R4 Extraction Client & Signed Download Helpers
 
 ### T20 — Extraction UI, Region Preview & Download Panel
 
-**Assignee:** (`feat/r4-t20-extraction-ui`) — #52  
+**Assignee:** (`feat/r4-t20-extraction-ui`) — #52 — **Done** (UI + preview + download panel + tests)  
 **Blocked by:** T19 (client helper); T18 for live worker pipeline (stub completed row to start)  
 **Blocks:** nothing (closes Epic R4/R8)  
 
