@@ -12,6 +12,7 @@ export type AnnotationWriteErr = {
   ok: false;
   error: string;
   conflict?: boolean;
+  serverVersion?: number;
 };
 export type AnnotationWriteResult = AnnotationWriteOk | AnnotationWriteErr;
 
@@ -228,7 +229,12 @@ export async function updateAnnotation(
   }
 
   if (existing.version !== input.version) {
-    return { ok: false, error: ANNOTATION_ERRORS.conflict, conflict: true };
+    return {
+      ok: false,
+      error: ANNOTATION_ERRORS.conflict,
+      conflict: true,
+      serverVersion: existing.version,
+    };
   }
 
   return { ok: false, error: ANNOTATION_ERRORS.write };
@@ -263,3 +269,25 @@ export async function deleteAnnotation(
 
   return { ok: true };
 }
+
+export async function getLatestAnnotation(
+  supabase: SupabaseClient<Database>,
+  id: string,
+): Promise<{ ok: true; annotation: Annotation } | { ok: false; error: string }> {
+  if (!UUID_RE.test(id)) {
+    return { ok: false, error: ANNOTATION_ERRORS.ids };
+  }
+
+  const { data, error } = await supabase
+    .from("annotations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error || !data) {
+    return { ok: false, error: ANNOTATION_ERRORS.missing };
+  }
+
+  return { ok: true, annotation: data as Annotation };
+}
+

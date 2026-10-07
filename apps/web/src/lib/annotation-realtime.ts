@@ -59,3 +59,73 @@ export function mergeAnnotationRealtimeEvent(
 
   return sortNotes(notes.map((note) => (note.id === row.id ? next : note)));
 }
+
+export type EditConflict = {
+  hasConflict: boolean;
+  reason?: "version_mismatch" | "deleted";
+  serverVersion?: number;
+  serverNote?: AnnotationListItem;
+};
+
+/**
+ * Detects if an incoming Realtime event collides with an annotation
+ * currently being edited by the local user (US13).
+ */
+export function detectEditConflict(
+  editingTarget: { id: string; version: number } | null | undefined,
+  eventType: AnnotationRealtimeEvent,
+  incomingRow: AnnotationListItem,
+): EditConflict {
+  if (!editingTarget || editingTarget.id !== incomingRow.id) {
+    return { hasConflict: false };
+  }
+
+  if (eventType === "DELETE") {
+    return {
+      hasConflict: true,
+      reason: "deleted",
+    };
+  }
+
+  if (eventType === "UPDATE" && incomingRow.version !== editingTarget.version) {
+    return {
+      hasConflict: true,
+      reason: "version_mismatch",
+      serverVersion: incomingRow.version,
+      serverNote: incomingRow,
+    };
+  }
+
+  return { hasConflict: false };
+}
+
+/**
+ * Reconciles draft inputs with an updated server annotation version.
+ * Keeps local typed draft inputs while adopting the new server version.
+ */
+export function reconcileDraftWithServer(
+  draft: { label: string; comment: string },
+  serverNote: { version: number },
+): { label: string; comment: string; version: number } {
+  return {
+    label: draft.label,
+    comment: draft.comment,
+    version: serverNote.version,
+  };
+}
+
+/**
+ * Discards local draft inputs in favor of server content and version.
+ */
+export function discardDraftForServer(serverNote: {
+  version: number;
+  label: string | null;
+  comment: string | null;
+}): { label: string; comment: string; version: number } {
+  return {
+    label: serverNote.label ?? "",
+    comment: serverNote.comment ?? "",
+    version: serverNote.version,
+  };
+}
+
