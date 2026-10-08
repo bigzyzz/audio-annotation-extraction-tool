@@ -22,6 +22,9 @@ export const EXTRACTION_ERRORS = {
   createJob: "Couldn't request extraction. Please try again.",
   fetchJobs: "Couldn't fetch extraction jobs.",
   downloadUrl: "Couldn't generate download link for extracted audio.",
+  invalidJobId: "Invalid extraction job identifier.",
+  deleteJob: "Couldn't delete extraction job.",
+  jobNotFound: "Extraction job not found or permission denied.",
 } as const;
 
 export type RequestExtractionJobInput = {
@@ -46,6 +49,14 @@ export type ExtractionDownloadUrls = {
 
 export type ExtractionDownloadUrlsResult =
   | { ok: true; urls: ExtractionDownloadUrls }
+  | { ok: false; error: string };
+
+export type DeleteExtractionJobResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export type ClearExtractionJobsResult =
+  | { ok: true; deletedCount: number }
   | { ok: false; error: string };
 
 const UUID_RE =
@@ -221,3 +232,110 @@ export async function createExtractionDownloadUrls(
     },
   };
 }
+
+export async function deleteExtractionJob(
+  supabase: SupabaseClient<Database>,
+  jobId: string,
+): Promise<DeleteExtractionJobResult> {
+  if (!UUID_RE.test(jobId)) {
+    return { ok: false, error: EXTRACTION_ERRORS.invalidJobId };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: EXTRACTION_ERRORS.login };
+  }
+
+  // 1. Fetch job to inspect output_path and clean up storage files
+  const { data: job } = await supabase
+    .from("extraction_jobs")
+    .select("output_path")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (job?.output_path) {
+    const pathValidation = validateExtractionStoragePath(job.output_path);
+    if (pathValidation.ok) {
+      await supabase.storage
+        .from(AUDIO_BUCKET)
+        .remove([pathValidation.audioPath, pathValidation.metadataPath])
+        .catch(() => null);
+    }
+  }
+
+  // 2. Delete row from extraction_jobs
+  const { data, error } = await supabase
+    .from("extraction_jobs")
+    .delete()
+    .eq("id", jobId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { ok: false, error: error.message ?? EXTRACTION_ERRORS.deleteJob };
+  }
+
+  if (!data) {
+    return { ok: false, error: EXTRACTION_ERRORS.jobNotFound };
+  }
+
+  return { ok: true };
+}
+
+export async function clearExtractionJobsForFile(
+  supabase: SupabaseClient<Database>,
+  audioFileId: string,
+): Promise<ClearExtractionJobsResult> {
+  if (!UUID_RE.test(audioFileId)) {
+    return { ok: false, error: EXTRACTION_ERRORS.invalidFileId };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, error: EXTRACTION_ERRORS.login };
+  }
+
+  // 1. Fetch all output paths to delete from storage
+  const { data: jobs } = await supabase
+    .from("extraction_jobs")
+    .select("output_path")
+    .eq("audio_file_id", audioFileId);
+
+  const storagePathsToRemove: string[] = [];
+  if (jobs && jobs.length > 0) {
+    for (const j of jobs) {
+      if (j.output_path) {
+        const v = validateExtractionStoragePath(j.output_path);
+        if (v.ok) {
+          storagePathsToRemove.push(v.audioPath, v.metadataPath);
+        }
+      }
+    }
+    if (storagePathsToRemove.length > 0) {
+      await supabase.storage
+        .from(AUDIO_BUCKET)
+        .remove(storagePathsToRemove)
+        .catch(() => null);
+    }
+  }
+
+  // 2. Delete all jobs for this audio file
+  const { data, error } = await supabase
+    .from("extraction_jobs")
+    .delete()
+    .eq("audio_file_id", audioFileId)
+    .select("id");
+
+  if (error) {
+    return { ok: false, error: error.message ?? EXTRACTION_ERRORS.deleteJob };
+  }
+
+  return { ok: true, deletedCount: data?.length ?? 0 };
+}
+

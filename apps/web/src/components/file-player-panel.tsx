@@ -66,7 +66,9 @@ export function FilePlayerPanel({
   const [error, setError] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<AnnotationListItem[]>([]);
   const [currentTime, setCurrentTime] = useState<number | null>(null);
-  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionTarget, setSelectionTarget] = useState<
+    "annotation" | "extraction" | null
+  >(null);
   const [draftRange, setDraftRange] = useState<AnnotationPanelRange | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [seekRequest, setSeekRequest] = useState<WaveformSeekRequest | null>(
@@ -461,7 +463,18 @@ export function FilePlayerPanel({
   }, []);
 
   const startAddAnnotation = useCallback(() => {
-    setIsSelecting(true);
+    setSelectionTarget("annotation");
+    setEditingId(null);
+    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
+    setDraftRange({
+      start: initialStart,
+      end: null,
+      isRange: false,
+    });
+  }, [currentTime]);
+
+  const startExtractionSelection = useCallback(() => {
+    setSelectionTarget("extraction");
     setEditingId(null);
     const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
     setDraftRange({
@@ -472,7 +485,7 @@ export function FilePlayerPanel({
   }, [currentTime]);
 
   const cancelSelection = useCallback(() => {
-    setIsSelecting(false);
+    setSelectionTarget(null);
     setEditingId(null);
     setDraftRange(null);
   }, []);
@@ -486,7 +499,7 @@ export function FilePlayerPanel({
     (id: string | null) => {
       setEditingId(id);
       if (id) {
-        setIsSelecting(false);
+        setSelectionTarget("annotation");
         const note = annotations.find((a) => a.id === id);
         if (note) {
           const s = Number(note.start_seconds);
@@ -499,6 +512,7 @@ export function FilePlayerPanel({
         }
       } else {
         setDraftRange(null);
+        setSelectionTarget(null);
       }
     },
     [annotations],
@@ -557,7 +571,7 @@ export function FilePlayerPanel({
           annotations={annotations}
           seekRequest={seekRequest}
           previewRequest={previewRequest}
-          isSelecting={isSelecting}
+          isSelecting={selectionTarget !== null}
           draftRange={draftRange}
           onDraftRangeChange={setDraftRange}
           editingAnnotationId={editingId}
@@ -574,11 +588,13 @@ export function FilePlayerPanel({
           durationSeconds={file.duration_seconds}
           currentTime={currentTime}
           selectedRange={draftRange}
-          isSelecting={isSelecting}
-          onStartSelection={startAddAnnotation}
+          isSelecting={selectionTarget === "extraction"}
+          onStartSelection={startExtractionSelection}
           onCancelSelection={cancelSelection}
+          onRangeChange={setDraftRange}
           onPreviewRange={previewRange}
           initialJobs={initialJobs}
+          currentUserId={currentUser?.id}
         />
       </div>
 
@@ -587,7 +603,7 @@ export function FilePlayerPanel({
           audioFileId={file.id}
           durationSeconds={file.duration_seconds}
           currentTime={currentTime}
-          isSelecting={isSelecting}
+          isSelecting={selectionTarget === "annotation"}
           onStartAdd={startAddAnnotation}
           onCancelAdd={cancelSelection}
           selectedRange={draftRange}

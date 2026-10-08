@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, ExtractionJob } from "@audio-tool/shared-types";
 import {
+  clearExtractionJobsForFile,
   createExtractionDownloadUrls,
+  deleteExtractionJob,
   EXTRACTION_ERRORS,
   getExtractionJobs,
   requestExtractionJob,
@@ -313,3 +315,159 @@ describe("createExtractionDownloadUrls", () => {
     }
   });
 });
+
+describe("deleteExtractionJob", () => {
+  it("rejects invalid jobId UUID", async () => {
+    const client = {} as unknown as SupabaseClient<Database>;
+    const res = await deleteExtractionJob(client, "invalid-id");
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.equal(res.error, EXTRACTION_ERRORS.invalidJobId);
+    }
+  });
+
+  it("fails when user is not authenticated", async () => {
+    const mockSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    const res = await deleteExtractionJob(mockSupabase, VALID_JOB_ID);
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.equal(res.error, EXTRACTION_ERRORS.login);
+    }
+  });
+
+  it("deletes job and removes storage files when job exists", async () => {
+    const mockUser = { id: "user-123" };
+    let removedStoragePaths: string[] = [];
+    let deletedJobId: string | null = null;
+
+    const mockSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: mockUser }, error: null }),
+      },
+      storage: {
+        from: (bucket: string) => {
+          assert.equal(bucket, "audio");
+          return {
+            remove: async (paths: string[]) => {
+              removedStoragePaths = paths;
+              return { data: paths, error: null };
+            },
+          };
+        },
+      },
+      from: (table: string) => {
+        assert.equal(table, "extraction_jobs");
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: {
+                  output_path: `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.mp3`,
+                },
+                error: null,
+              }),
+            }),
+          }),
+          delete: () => ({
+            eq: (_col: string, val: string) => {
+              deletedJobId = val;
+              return {
+                select: () => ({
+                  maybeSingle: async () => ({
+                    data: { id: val },
+                    error: null,
+                  }),
+                }),
+              };
+            },
+          }),
+        };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    const res = await deleteExtractionJob(mockSupabase, VALID_JOB_ID);
+    assert.equal(res.ok, true);
+    assert.equal(deletedJobId, VALID_JOB_ID);
+    assert.deepEqual(removedStoragePaths, [
+      `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.mp3`,
+      `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.annotations.json`,
+    ]);
+  });
+
+  it("returns error when job is not found or already deleted", async () => {
+    const mockUser = { id: "user-123" };
+    const mockSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: mockUser }, error: null }),
+      },
+      storage: {
+        from: () => ({ remove: async () => ({ data: null, error: null }) }),
+      },
+      from: () => ({
+        select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+        delete: () => ({
+          eq: () => ({ select: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }),
+        }),
+      }),
+    } as unknown as SupabaseClient<Database>;
+
+    const res = await deleteExtractionJob(mockSupabase, VALID_JOB_ID);
+    assert.equal(res.ok, false);
+    if (!res.ok) {
+      assert.equal(res.error, EXTRACTION_ERRORS.jobNotFound);
+    }
+  });
+});
+
+describe("clearExtractionJobsForFile", () => {
+  it("clears all extraction jobs and storage files for audio file", async () => {
+    const mockUser = { id: "user-123" };
+    let removedStoragePaths: string[] = [];
+
+    const mockSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: mockUser }, error: null }),
+      },
+      storage: {
+        from: () => ({
+          remove: async (paths: string[]) => {
+            removedStoragePaths = paths;
+            return { data: paths, error: null };
+          },
+        }),
+      },
+      from: () => ({
+        select: () => ({
+          eq: () =>
+            Promise.resolve({
+              data: [
+                { output_path: `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.wav` },
+              ],
+              error: null,
+            }),
+        }),
+        delete: () => ({
+          eq: () => ({
+            select: () => Promise.resolve({ data: [{ id: VALID_JOB_ID }], error: null }),
+          }),
+        }),
+      }),
+    } as unknown as SupabaseClient<Database>;
+
+    const res = await clearExtractionJobsForFile(mockSupabase, VALID_FILE_ID);
+    assert.equal(res.ok, true);
+    if (res.ok) {
+      assert.equal(res.deletedCount, 1);
+      assert.deepEqual(removedStoragePaths, [
+        `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.wav`,
+        `extractions/${VALID_FILE_ID}/${VALID_JOB_ID}.annotations.json`,
+      ]);
+    }
+  });
+});
+
