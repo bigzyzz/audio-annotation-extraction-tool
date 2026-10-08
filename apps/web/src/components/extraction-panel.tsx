@@ -4,15 +4,27 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ExtractionJob, ExtractionJobStatus } from "@audio-tool/shared-types";
 import { createClient } from "@/lib/supabase/client";
 import {
-  clearExtractionJobsForFile,
+  deleteExtractionJobAction,
+  clearExtractionJobsAction,
+} from "@/app/files/[id]/actions";
+import {
   createExtractionDownloadUrls,
-  deleteExtractionJob,
   getExtractionJobs,
   requestExtractionJob,
   roundExtractionTime,
   validateExtractionTimes,
 } from "@/lib/extraction";
 import { formatDurationSeconds } from "@/lib/format-duration";
+
+function formatJobTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return "recently";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "recently";
+  }
+}
 
 const POLL_INTERVAL_MS = 2500;
 
@@ -310,8 +322,7 @@ export function ExtractionPanel({
   async function handleDeleteJob(jobId: string) {
     setIsDeletingId(jobId);
     setJobsError(null);
-    const supabase = createClient();
-    const result = await deleteExtractionJob(supabase, jobId);
+    const result = await deleteExtractionJobAction(jobId);
     setIsDeletingId(null);
 
     if (!result.ok) {
@@ -331,8 +342,7 @@ export function ExtractionPanel({
   async function handleClearAllJobs() {
     setIsClearingAll(true);
     setJobsError(null);
-    const supabase = createClient();
-    const result = await clearExtractionJobsForFile(supabase, audioFileId);
+    const result = await clearExtractionJobsAction(audioFileId);
     setIsClearingAll(false);
 
     if (!result.ok) {
@@ -788,8 +798,8 @@ export function ExtractionPanel({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        <span>
-                          Created {new Date(job.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        <span suppressHydrationWarning>
+                          Created {formatJobTime(job.created_at)}
                         </span>
                         {job.error_message ? (
                           <span className="text-red-600 dark:text-red-400 font-medium">
