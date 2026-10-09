@@ -65,6 +65,10 @@ export function FilePlayerPanel({
   const [peaks, setPeaks] = useState<WaveformPeaksDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [annotations, setAnnotations] = useState<AnnotationListItem[]>([]);
+  const [jobs, setJobs] = useState<ExtractionJob[]>(initialJobs);
+  const [activeTab, setActiveTab] = useState<"annotations" | "extraction">(
+    "annotations",
+  );
   const [currentTime, setCurrentTime] = useState<number | null>(null);
   const [selectionTarget, setSelectionTarget] = useState<
     "annotation" | "extraction" | null
@@ -463,6 +467,7 @@ export function FilePlayerPanel({
   }, []);
 
   const startAddAnnotation = useCallback(() => {
+    setActiveTab("annotations");
     setSelectionTarget("annotation");
     setEditingId(null);
     const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
@@ -474,15 +479,11 @@ export function FilePlayerPanel({
   }, [currentTime]);
 
   const startExtractionSelection = useCallback(() => {
+    setActiveTab("extraction");
     setSelectionTarget("extraction");
     setEditingId(null);
-    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
-    setDraftRange({
-      start: initialStart,
-      end: null,
-      isRange: false,
-    });
-  }, [currentTime]);
+    setDraftRange(null);
+  }, []);
 
   const cancelSelection = useCallback(() => {
     setSelectionTarget(null);
@@ -499,6 +500,7 @@ export function FilePlayerPanel({
     (id: string | null) => {
       setEditingId(id);
       if (id) {
+        setActiveTab("annotations");
         setSelectionTarget("annotation");
         const note = annotations.find((a) => a.id === id);
         if (note) {
@@ -518,8 +520,12 @@ export function FilePlayerPanel({
     [annotations],
   );
 
+  const hasActiveExtraction = jobs.some(
+    (job) => job.status === "pending" || job.status === "processing",
+  );
+
   return (
-    <div className="flex w-full flex-col gap-10">
+    <div className="flex w-full flex-col gap-8">
       <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-baseline gap-3">
@@ -575,30 +581,105 @@ export function FilePlayerPanel({
           draftRange={draftRange}
           onDraftRangeChange={setDraftRange}
           editingAnnotationId={editingId}
+          selectionMode={selectionTarget === "extraction" ? "range_only" : "all"}
           onTimeSelect={stampTime}
           onTimeUpdate={onTimeUpdate}
         />
       </div>
 
-      <div id="extraction" className="w-full pt-6 border-t border-zinc-200 dark:border-zinc-800">
-        <ExtractionPanel
-          audioFileId={file.id}
-          filename={file.filename}
-          format={file.format}
-          durationSeconds={file.duration_seconds}
-          currentTime={currentTime}
-          selectedRange={draftRange}
-          isSelecting={selectionTarget === "extraction"}
-          onStartSelection={startExtractionSelection}
-          onCancelSelection={cancelSelection}
-          onRangeChange={setDraftRange}
-          onPreviewRange={previewRange}
-          initialJobs={initialJobs}
-          currentUserId={currentUser?.id}
-        />
+      {/* Workspace Navigation Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <nav className="-mb-px flex space-x-6" aria-label="Workspace tabs">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("annotations");
+              if (selectionTarget === "extraction") {
+                cancelSelection();
+              }
+            }}
+            className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors ${
+              activeTab === "annotations"
+                ? "border-black text-black dark:border-white dark:text-white"
+                : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200"
+            }`}
+            aria-current={activeTab === "annotations" ? "page" : undefined}
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+              />
+            </svg>
+            <span>Annotations</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                activeTab === "annotations"
+                  ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                  : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400"
+              }`}
+            >
+              {annotations.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("extraction");
+              if (selectionTarget === "annotation") {
+                cancelSelection();
+              }
+            }}
+            className={`flex items-center gap-2 border-b-2 py-3 text-sm font-medium transition-colors ${
+              activeTab === "extraction"
+                ? "border-black text-black dark:border-white dark:text-white"
+                : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200"
+            }`}
+            aria-current={activeTab === "extraction" ? "page" : undefined}
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
+              />
+            </svg>
+            <span>Lossless Extraction</span>
+            {hasActiveExtraction ? (
+              <span className="flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                Extracting
+              </span>
+            ) : jobs.length > 0 ? (
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  activeTab === "extraction"
+                    ? "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                    : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400"
+                }`}
+              >
+                {jobs.length}
+              </span>
+            ) : null}
+          </button>
+        </nav>
       </div>
 
-      <div className="w-full pt-6 border-t border-zinc-200 dark:border-zinc-800">
+      <div className={activeTab === "annotations" ? "w-full" : "hidden"}>
         <AnnotationPanel
           audioFileId={file.id}
           durationSeconds={file.duration_seconds}
@@ -613,6 +694,24 @@ export function FilePlayerPanel({
           onJumpTo={jumpTo}
           onEditingChange={handleEditingChange}
           onPreviewRange={previewRange}
+        />
+      </div>
+
+      <div id="extraction" className={activeTab === "extraction" ? "w-full" : "hidden"}>
+        <ExtractionPanel
+          audioFileId={file.id}
+          filename={file.filename}
+          format={file.format}
+          durationSeconds={file.duration_seconds}
+          selectedRange={draftRange}
+          isSelecting={selectionTarget === "extraction"}
+          onStartSelection={startExtractionSelection}
+          onCancelSelection={cancelSelection}
+          onRangeChange={setDraftRange}
+          onPreviewRange={previewRange}
+          initialJobs={initialJobs}
+          currentUserId={currentUser?.id}
+          onJobsChange={setJobs}
         />
       </div>
     </div>

@@ -211,10 +211,14 @@ export async function createExtractionDownloadUrls(
   const [audioRes, metaRes] = await Promise.all([
     supabase.storage
       .from(AUDIO_BUCKET)
-      .createSignedUrl(pathValidation.audioPath, SIGNED_EXTRACTION_URL_TTL_SECONDS),
+      .createSignedUrl(pathValidation.audioPath, SIGNED_EXTRACTION_URL_TTL_SECONDS, {
+        download: true,
+      }),
     supabase.storage
       .from(AUDIO_BUCKET)
-      .createSignedUrl(pathValidation.metadataPath, SIGNED_EXTRACTION_URL_TTL_SECONDS),
+      .createSignedUrl(pathValidation.metadataPath, SIGNED_EXTRACTION_URL_TTL_SECONDS, {
+        download: true,
+      }),
   ]);
 
   if (audioRes.error || !audioRes.data?.signedUrl) {
