@@ -39,7 +39,6 @@ export type ExtractionPanelProps = {
   filename?: string;
   format?: string;
   durationSeconds?: number | null;
-  currentTime?: number | null;
   selectedRange?: ExtractionRange | null;
   isSelecting?: boolean;
   onStartSelection?: () => void;
@@ -48,6 +47,7 @@ export type ExtractionPanelProps = {
   onPreviewRange?: (start: number, end: number) => void;
   initialJobs?: ExtractionJob[];
   currentUserId?: string | null;
+  onJobsChange?: (jobs: ExtractionJob[]) => void;
 };
 
 export function formatExtractionStamp(
@@ -100,7 +100,6 @@ export function ExtractionPanel({
   filename,
   format,
   durationSeconds,
-  currentTime,
   selectedRange,
   isSelecting = false,
   onStartSelection,
@@ -109,10 +108,15 @@ export function ExtractionPanel({
   onPreviewRange,
   initialJobs = [],
   currentUserId,
+  onJobsChange,
 }: ExtractionPanelProps) {
   const [jobs, setJobs] = useState<ExtractionJob[]>(initialJobs);
   const [loadingJobs, setLoadingJobs] = useState(initialJobs.length === 0);
   const [jobsError, setJobsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onJobsChange?.(jobs);
+  }, [jobs, onJobsChange]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -121,7 +125,7 @@ export function ExtractionPanel({
   const [downloadUrls, setDownloadUrls] = useState<
     Record<string, { audioUrl: string; metadataUrl: string | null }>
   >({});
-  const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null);
 
   // Deletion state
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -211,42 +215,6 @@ export function ExtractionPanel({
     onCancelSelection?.();
   }
 
-  function handleStampStart() {
-    if (currentTime == null) return;
-    const s = roundExtractionTime(currentTime);
-    const existingEnd = activeRange?.end;
-    const targetEnd =
-      existingEnd != null && existingEnd > s + 0.05
-        ? existingEnd
-        : durationSeconds != null
-          ? Math.min(durationSeconds, roundExtractionTime(s + 5))
-          : roundExtractionTime(s + 5);
-
-    onRangeChange?.({
-      start: s,
-      end: targetEnd,
-      isRange: true,
-    });
-    setSubmitError(null);
-  }
-
-  function handleStampEnd() {
-    if (currentTime == null) return;
-    const e = roundExtractionTime(currentTime);
-    const existingStart = activeRange?.start;
-    const targetStart =
-      existingStart != null && existingStart < e - 0.05
-        ? existingStart
-        : Math.max(0, roundExtractionTime(e - 5));
-
-    onRangeChange?.({
-      start: targetStart,
-      end: e,
-      isRange: true,
-    });
-    setSubmitError(null);
-  }
-
   function handleNudgeStart(delta: number) {
     if (!activeRange) return;
     const nextStart = Math.max(0, roundExtractionTime(activeRange.start + delta));
@@ -283,40 +251,66 @@ export function ExtractionPanel({
   async function handleDownload(job: ExtractionJob, type: "audio" | "metadata") {
     if (!job.output_path || job.status !== "completed") return;
 
-    let urls = downloadUrls[job.id];
-    if (!urls) {
-      setDownloadingJobId(job.id);
-      const supabase = createClient();
-      const result = await createExtractionDownloadUrls(supabase, job.output_path);
-      setDownloadingJobId(null);
-      if (!result.ok) {
-        setJobsError(result.error);
-        return;
+    const key = `${job.id}-${type}`;
+    setDownloadingKey(key);
+    setJobsError(null);
+
+    try {
+      let urls = downloadUrls[job.id];
+      if (!urls) {
+        const supabase = createClient();
+        const result = await createExtractionDownloadUrls(supabase, job.output_path);
+        if (!result.ok) {
+          setJobsError(result.error);
+          return;
+        }
+        urls = result.urls;
+        setDownloadUrls((prev) => ({ ...prev, [job.id]: result.urls }));
       }
-      urls = result.urls;
-      setDownloadUrls((prev) => ({ ...prev, [job.id]: result.urls }));
+
+      const targetUrl = type === "audio" ? urls.audioUrl : urls.metadataUrl;
+      if (!targetUrl) return;
+
+      const filenames = getExtractionDownloadFilenames(
+        filename,
+        Number(job.start_seconds),
+        Number(job.end_seconds),
+        format,
+      );
+      const downloadName =
+        type === "audio" ? filenames.audioFilename : filenames.metadataFilename;
+
+      try {
+        const response = await fetch(targetUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to download file (${response.status})`);
+        }
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = downloadName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch {
+        // Fallback: direct download link without opening in a new tab
+        const link = document.createElement("a");
+        link.href = targetUrl;
+        link.download = downloadName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (err) {
+      setJobsError(
+        err instanceof Error ? err.message : "Download failed. Please try again.",
+      );
+    } finally {
+      setDownloadingKey(null);
     }
-
-    const targetUrl = type === "audio" ? urls.audioUrl : urls.metadataUrl;
-    if (!targetUrl) return;
-
-    const filenames = getExtractionDownloadFilenames(
-      filename,
-      Number(job.start_seconds),
-      Number(job.end_seconds),
-      format,
-    );
-    const downloadName =
-      type === "audio" ? filenames.audioFilename : filenames.metadataFilename;
-
-    const link = document.createElement("a");
-    link.href = targetUrl;
-    link.download = downloadName;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   async function handleDeleteJob(jobId: string) {
@@ -490,17 +484,6 @@ export function ExtractionPanel({
                   <p className="mt-1 text-xs text-blue-700 dark:text-blue-400">
                     Click and drag directly on the audio track to highlight the exact portion you want to extract.
                   </p>
-                  {currentTime != null ? (
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleStampStart}
-                        className="rounded-md border border-blue-300 bg-white px-3 py-1 text-xs font-medium text-blue-900 shadow-xs hover:bg-blue-50 dark:border-blue-700 dark:bg-zinc-800 dark:text-blue-200"
-                      >
-                        ⏱ Start from Playhead ({formatDurationSeconds(currentTime)})
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
               ) : (
                 <div className="flex flex-col gap-3 rounded-lg border border-blue-200/60 bg-white/80 p-4 dark:border-blue-900/40 dark:bg-zinc-900/60">
@@ -529,15 +512,6 @@ export function ExtractionPanel({
                           +0.1s
                         </button>
                       </div>
-                      {currentTime != null ? (
-                        <button
-                          type="button"
-                          onClick={handleStampStart}
-                          className="ml-1 text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          ⏱ Playhead ({formatDurationSeconds(currentTime)})
-                        </button>
-                      ) : null}
                     </div>
 
                     {/* End bounds with micro-nudge */}
@@ -564,15 +538,6 @@ export function ExtractionPanel({
                           +0.1s
                         </button>
                       </div>
-                      {currentTime != null ? (
-                        <button
-                          type="button"
-                          onClick={handleStampEnd}
-                          className="ml-1 text-[11px] font-medium text-blue-600 hover:underline dark:text-blue-400"
-                        >
-                          ⏱ Playhead ({formatDurationSeconds(currentTime)})
-                        </button>
-                      ) : null}
                     </div>
                   </div>
 
@@ -759,7 +724,9 @@ export function ExtractionPanel({
                 const statusMeta = formatJobStatus(job.status);
                 const s = Number(job.start_seconds);
                 const e = Number(job.end_seconds);
-                const isDownloading = downloadingJobId === job.id;
+                const isDownloadingAudio = downloadingKey === `${job.id}-audio`;
+                const isDownloadingMetadata = downloadingKey === `${job.id}-metadata`;
+                const isAnyDownloading = downloadingKey != null;
                 const isDeleting = isDeletingId === job.id;
                 const isPendingDelete = pendingDeleteId === job.id;
 
@@ -815,46 +782,98 @@ export function ExtractionPanel({
                         <>
                           <button
                             type="button"
-                            disabled={isDownloading}
+                            disabled={isAnyDownloading}
                             onClick={() => void handleDownload(job, "audio")}
                             className="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white shadow-xs transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
                           >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                              />
-                            </svg>
-                            <span>Download Audio ({format ? format.toUpperCase() : "CUT"})</span>
+                            {isDownloadingAudio ? (
+                              <svg
+                                className="h-3.5 w-3.5 animate-spin text-current"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                />
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                              </svg>
+                            ) : (
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                />
+                              </svg>
+                            )}
+                            <span>
+                              {isDownloadingAudio
+                                ? "Downloading…"
+                                : `Download Audio (${format ? format.toUpperCase() : "CUT"})`}
+                            </span>
                           </button>
 
                           <button
                             type="button"
-                            disabled={isDownloading}
+                            disabled={isAnyDownloading}
                             onClick={() => void handleDownload(job, "metadata")}
                             className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 shadow-xs transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
                           >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                              />
-                            </svg>
-                            <span>Annotations (.json)</span>
+                            {isDownloadingMetadata ? (
+                              <svg
+                                className="h-3.5 w-3.5 animate-spin text-current"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                />
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                              </svg>
+                            ) : (
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                />
+                              </svg>
+                            )}
+                            <span>
+                              {isDownloadingMetadata
+                                ? "Downloading…"
+                                : "Annotations (.json)"}
+                            </span>
                           </button>
                         </>
                       ) : job.status === "failed" ? (

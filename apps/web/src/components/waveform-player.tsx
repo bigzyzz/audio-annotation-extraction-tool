@@ -38,6 +38,7 @@ export type WaveformPlayerProps = {
   draftRange?: { start: number; end: number | null; isRange: boolean } | null;
   onDraftRangeChange?: (range: { start: number; end: number | null; isRange: boolean }) => void;
   editingAnnotationId?: string | null;
+  selectionMode?: "all" | "range_only";
   onTimeSelect?: (seconds: number) => void;
   onTimeUpdate?: (seconds: number) => void;
 };
@@ -53,6 +54,7 @@ export function WaveformPlayer({
   draftRange = null,
   onDraftRangeChange,
   editingAnnotationId = null,
+  selectionMode = "all",
   onTimeSelect,
   onTimeUpdate,
 }: WaveformPlayerProps) {
@@ -65,6 +67,7 @@ export function WaveformPlayer({
   const draftRangeRef = useRef(draftRange);
   const onDraftRangeChangeRef = useRef(onDraftRangeChange);
   const editingAnnotationIdRef = useRef(editingAnnotationId);
+  const selectionModeRef = useRef(selectionMode);
   const previewStopRef = useRef<number | null>(null);
   const isScrubbingRef = useRef(false);
 
@@ -83,6 +86,7 @@ export function WaveformPlayer({
     draftRangeRef.current = draftRange;
     onDraftRangeChangeRef.current = onDraftRangeChange;
     editingAnnotationIdRef.current = editingAnnotationId;
+    selectionModeRef.current = selectionMode;
   }, [
     onTimeSelect,
     onTimeUpdate,
@@ -90,6 +94,7 @@ export function WaveformPlayer({
     draftRange,
     onDraftRangeChange,
     editingAnnotationId,
+    selectionMode,
   ]);
 
   const peaksLoad = useMemo(() => {
@@ -184,7 +189,7 @@ export function WaveformPlayer({
         setCurrentPlayheadTime(time);
         onTimeSelectRef.current?.(time);
 
-        if (isSelectingRef.current) {
+        if (isSelectingRef.current && selectionModeRef.current !== "range_only") {
           const rounded = roundAnnotationTime(time);
           onDraftRangeChangeRef.current?.({
             start: rounded,
