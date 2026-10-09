@@ -595,6 +595,16 @@ export function ExtractionPanel({
                 </div>
               )}
 
+              {activeRange && !validation.ok ? (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
+                >
+                  <span aria-hidden="true">⚠️</span>
+                  <span>{validation.error}</span>
+                </div>
+              ) : null}
+
               {submitError ? (
                 <ActionableErrorAlert
                   error={submitError}

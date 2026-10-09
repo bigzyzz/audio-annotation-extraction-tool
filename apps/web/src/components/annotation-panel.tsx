@@ -15,6 +15,7 @@ import {
   discardDraftForServer,
   reconcileDraftWithServer,
 } from "@/lib/annotation-realtime";
+import { validateAnnotationInput } from "@/lib/annotation-validate";
 import { formatDurationSeconds } from "@/lib/format-duration";
 import { ActionableErrorAlert } from "@/components/actionable-error-alert";
 import { useToast } from "@/components/toast";
@@ -106,6 +107,7 @@ export async function fetchAnnotationsForFile(
 
 export function AnnotationPanel({
   audioFileId,
+  durationSeconds,
   currentTime = null,
   isSelecting: isSelectingProp,
   onStartAdd,
@@ -137,6 +139,8 @@ export function AnnotationPanel({
   } | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isAddingLocal, setIsAddingLocal] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [pendingDiscardAction, setPendingDiscardAction] = useState<(() => void) | null>(null);
 
   const [localRange, setLocalRange] = useState<AnnotationPanelRange>(() => ({
     start: currentTime != null ? roundAnnotationTime(currentTime) : 0,
@@ -209,6 +213,70 @@ export function AnnotationPanel({
     [annotations, editingId, editingNote],
   );
 
+  const showForm = isAdding || editingId != null;
+
+  // Track initial values for dirty-form detection (T22)
+  const initialLabel = editing?.label ?? "";
+  const initialComment = editing?.comment ?? "";
+  const initialStart = editing ? asSeconds(editing.start_seconds) : 0;
+  const initialEnd =
+    editing?.end_seconds != null && editing.end_seconds > editing.start_seconds
+      ? asSeconds(editing.end_seconds)
+      : null;
+
+  const isDirty = useMemo(() => {
+    if (!showForm) return false;
+    if (editing) {
+      const labelChanged = label !== initialLabel;
+      const commentChanged = comment !== initialComment;
+      const startChanged =
+        range != null &&
+        roundAnnotationTime(range.start) !== roundAnnotationTime(initialStart);
+      const endChanged =
+        range != null &&
+        roundAnnotationTime(range.end ?? -1) !== roundAnnotationTime(initialEnd ?? -1);
+      return labelChanged || commentChanged || startChanged || endChanged;
+    }
+    return label.trim().length > 0 || comment.trim().length > 0;
+  }, [
+    showForm,
+    editing,
+    label,
+    initialLabel,
+    comment,
+    initialComment,
+    range,
+    initialStart,
+    initialEnd,
+  ]);
+
+  // Guard against accidental window/tab exit with unsaved edits (T22)
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  // Live bounds & content validation (T22)
+  const activeStart = range?.start ?? (currentTime != null ? roundAnnotationTime(currentTime) : 0);
+  const activeEnd = range?.isRange && range.end != null ? roundAnnotationTime(range.end) : null;
+  const isRangeMode = Boolean(range?.isRange);
+
+  const validation = useMemo(() => {
+    return validateAnnotationInput({
+      start: activeStart,
+      end: activeEnd,
+      isRange: isRangeMode,
+      durationSeconds,
+      label,
+      comment,
+    });
+  }, [activeStart, activeEnd, isRangeMode, durationSeconds, label, comment]);
+
   // Derive remote background collisions directly from annotations state (US13)
   const remoteConflict = useMemo(() => {
     if (!editingId || editingTargetVersion == null) return null;
@@ -237,7 +305,7 @@ export function AnnotationPanel({
 
   const conflictState = submitConflict ?? remoteConflict;
 
-  function startAdd() {
+  function executeStartAdd() {
     setEditingId(null);
     setEditingNote(null);
     setEditingTargetVersion(null);
@@ -245,18 +313,28 @@ export function AnnotationPanel({
     onEditingChange?.(null);
     setIsAddingLocal(true);
     onStartAdd?.();
-    const initialStart = currentTime != null ? roundAnnotationTime(currentTime) : 0;
+    const initialStartVal = currentTime != null ? roundAnnotationTime(currentTime) : 0;
     updateRange({
-      start: initialStart,
+      start: initialStartVal,
       end: null,
       isRange: false,
     });
     setLabel("");
     setComment("");
     setError(null);
+    setShowDiscardConfirm(false);
   }
 
-  function handleCancel() {
+  function handleStartAddRequest() {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      setPendingDiscardAction(() => executeStartAdd);
+    } else {
+      executeStartAdd();
+    }
+  }
+
+  function executeCancel() {
     setEditingId(null);
     setEditingNote(null);
     setEditingTargetVersion(null);
@@ -268,9 +346,19 @@ export function AnnotationPanel({
     setComment("");
     setError(null);
     setPendingDeleteId(null);
+    setShowDiscardConfirm(false);
   }
 
-  function beginEdit(note: AnnotationListItem) {
+  function handleCancelRequest() {
+    if (isDirty) {
+      setShowDiscardConfirm(true);
+      setPendingDiscardAction(() => executeCancel);
+    } else {
+      executeCancel();
+    }
+  }
+
+  function executeBeginEdit(note: AnnotationListItem) {
     setEditingId(note.id);
     setEditingNote(note);
     setEditingTargetVersion(note.version);
@@ -278,6 +366,7 @@ export function AnnotationPanel({
     setIsAddingLocal(false);
     onEditingChange?.(note.id);
     setPendingDeleteId(null);
+    setShowDiscardConfirm(false);
 
     const s = asSeconds(note.start_seconds);
     const hasRange = note.end_seconds != null && note.end_seconds > note.start_seconds;
@@ -291,6 +380,62 @@ export function AnnotationPanel({
 
     setLabel(note.label ?? "");
     setComment(note.comment ?? "");
+    setError(null);
+  }
+
+  function handleBeginEditRequest(note: AnnotationListItem) {
+    if (isDirty && editingId !== note.id) {
+      setShowDiscardConfirm(true);
+      setPendingDiscardAction(() => () => executeBeginEdit(note));
+    } else {
+      executeBeginEdit(note);
+    }
+  }
+
+  function handleNudgeStart(delta: number) {
+    const nextStart = Math.max(0, roundAnnotationTime(activeStart + delta));
+    if (activeEnd == null || nextStart < activeEnd - 0.05) {
+      updateRange({
+        start: nextStart,
+        end: activeEnd,
+        isRange: isRangeMode,
+      });
+      setError(null);
+    }
+  }
+
+  function handleNudgeEnd(delta: number) {
+    if (!isRangeMode || activeEnd == null) return;
+    const maxBound = durationSeconds ?? Infinity;
+    const nextEnd = Math.min(
+      maxBound,
+      Math.max(activeStart + 0.05, roundAnnotationTime(activeEnd + delta)),
+    );
+    updateRange({
+      start: activeStart,
+      end: nextEnd,
+      isRange: true,
+    });
+    setError(null);
+  }
+
+  function handleToggleRange() {
+    if (isRangeMode) {
+      updateRange({
+        start: activeStart,
+        end: null,
+        isRange: false,
+      });
+    } else {
+      const defaultDuration = 1.0;
+      const maxBound = durationSeconds ?? activeStart + defaultDuration;
+      const end = Math.min(maxBound, roundAnnotationTime(activeStart + defaultDuration));
+      updateRange({
+        start: activeStart,
+        end,
+        isRange: true,
+      });
+    }
     setError(null);
   }
 
@@ -323,12 +468,8 @@ export function AnnotationPanel({
     event.preventDefault();
     setError(null);
 
-    const activeStart = range?.start ?? (currentTime != null ? roundAnnotationTime(currentTime) : 0);
-    const startSeconds = roundAnnotationTime(activeStart);
-    const endSeconds = range?.isRange && range.end != null ? roundAnnotationTime(range.end) : null;
-
-    if (endSeconds != null && endSeconds < startSeconds) {
-      setError("End time cannot be earlier than start time.");
+    if (!validation.ok) {
+      setError(validation.error);
       return;
     }
 
@@ -342,15 +483,15 @@ export function AnnotationPanel({
       ? await updateAnnotation(supabase, {
           id: targetNote.id,
           version: activeVersion,
-          startSeconds,
-          endSeconds,
+          startSeconds: activeStart,
+          endSeconds: activeEnd,
           label,
           comment,
         })
       : await createAnnotation(supabase, {
           audioFileId,
-          startSeconds,
-          endSeconds,
+          startSeconds: activeStart,
+          endSeconds: activeEnd,
           label,
           comment,
         });
@@ -359,7 +500,6 @@ export function AnnotationPanel({
 
     if (!result.ok) {
       if (result.conflict && targetNote) {
-        // Fetch fresh server annotation state so recovery details are accurate even if realtime lagged
         const latestResult = await getLatestAnnotation(supabase, targetNote.id);
         if (latestResult.ok) {
           setSubmitConflict({
@@ -383,7 +523,7 @@ export function AnnotationPanel({
 
     const wasEditing = targetNote != null;
     const savedLabel = label.trim();
-    handleCancel();
+    executeCancel();
     toast.success(
       wasEditing ? "Annotation updated" : "Annotation added",
       savedLabel ? `“${savedLabel}” saved to timeline.` : "Saved to timeline.",
@@ -404,12 +544,10 @@ export function AnnotationPanel({
     }
 
     toast.info("Annotation deleted", "Note removed from timeline.");
-    if (editingId === note.id) handleCancel();
+    if (editingId === note.id) executeCancel();
     setPendingDeleteId(null);
     await refresh();
   }
-
-  const showForm = isAdding || editingId != null;
 
   return (
     <section className="flex w-full flex-col gap-6" aria-labelledby="annotation-heading">
@@ -423,7 +561,7 @@ export function AnnotationPanel({
         {!showForm ? (
           <button
             type="button"
-            onClick={startAdd}
+            onClick={handleStartAddRequest}
             className="flex items-center gap-1.5 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
           >
             <span className="text-base font-bold leading-none">+</span>
@@ -456,6 +594,7 @@ export function AnnotationPanel({
                 {currentTime != null ? (
                   <button
                     type="button"
+                    disabled={busy}
                     onClick={() => {
                       const s = roundAnnotationTime(currentTime);
                       updateRange({
@@ -464,18 +603,19 @@ export function AnnotationPanel({
                         isRange: false,
                       });
                     }}
-                    className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 text-xs font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
+                    className="flex items-center gap-1 rounded border border-blue-300 bg-white/90 px-2.5 py-1 text-xs font-medium text-blue-900 shadow-xs transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-700 dark:bg-blue-900/60 dark:text-blue-200 dark:hover:bg-blue-900"
                     title="Stamp current playback time onto this annotation"
                   >
-                    ⏱ Use Playhead ({formatDurationSeconds(currentTime)})
+                    ⏱ Stamp Playhead ({formatDurationSeconds(currentTime)})
                   </button>
                 ) : null}
 
                 {range?.isRange && range.end != null && onPreviewRange ? (
                   <button
                     type="button"
+                    disabled={busy || !validation.boundsOk}
                     onClick={() => onPreviewRange(range.start, range.end!)}
-                    className="flex items-center gap-1 rounded border border-blue-400 bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    className="flex items-center gap-1 rounded border border-blue-400 bg-blue-600 px-2.5 py-1 text-xs font-medium text-white shadow-xs transition-colors hover:bg-blue-700 disabled:opacity-50 dark:border-blue-500 dark:bg-blue-500 dark:hover:bg-blue-600"
                     title="Play highlighted section"
                   >
                     ▶ Preview Selection
@@ -483,6 +623,139 @@ export function AnnotationPanel({
                 ) : null}
               </div>
             </div>
+
+            {/* Interactive Bounds Fine-Tuning & Live Validation Bar (T22) */}
+            <div className="mb-4 flex flex-col gap-2 rounded-lg border border-zinc-100 bg-zinc-50/70 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-900/50">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  {/* Start time bounds + nudger */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-zinc-600 dark:text-zinc-400">Start:</span>
+                    <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                      {formatDurationSeconds(activeStart)} ({activeStart.toFixed(2)}s)
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleNudgeStart(-0.1)}
+                        className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                        title="Nudge start back 0.1s"
+                      >
+                        -0.1s
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleNudgeStart(0.1)}
+                        className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                        title="Nudge start forward 0.1s"
+                      >
+                        +0.1s
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* End time bounds + nudger if range */}
+                  {isRangeMode && activeEnd != null ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-zinc-600 dark:text-zinc-400">End:</span>
+                      <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+                        {formatDurationSeconds(activeEnd)} ({activeEnd.toFixed(2)}s)
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleNudgeEnd(-0.1)}
+                          className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                          title="Nudge end back 0.1s"
+                        >
+                          -0.1s
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => handleNudgeEnd(0.1)}
+                          className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 font-mono text-[10px] text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                          title="Nudge end forward 0.1s"
+                        >
+                          +0.1s
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Range vs Point Toggle */}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={handleToggleRange}
+                  className="rounded border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 shadow-xs hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                >
+                  {isRangeMode ? "Switch to Point Note" : "+ Convert to Range Section"}
+                </button>
+              </div>
+
+              {/* Live Inline Bounds Validation Alert (T22) */}
+              {!validation.boundsOk && validation.error ? (
+                <div
+                  role="alert"
+                  className="mt-1 flex items-center gap-2 rounded border border-red-300 bg-red-50 p-2 text-xs font-medium text-red-900 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200"
+                >
+                  <span aria-hidden="true">⚠️</span>
+                  <span>{validation.error}</span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Dirty Form Discard Confirmation Guard (T22) */}
+            {showDiscardConfirm ? (
+              <div
+                role="alertdialog"
+                aria-labelledby="discard-warning-title"
+                className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-xs dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+              >
+                <div className="flex flex-col gap-2">
+                  <h4
+                    id="discard-warning-title"
+                    className="flex items-center gap-1.5 text-sm font-semibold"
+                  >
+                    <span aria-hidden="true">⚠️</span>
+                    <span>Unsaved Changes Warning</span>
+                  </h4>
+                  <p className="text-xs leading-relaxed opacity-90">
+                    You have unsaved changes in this annotation. Discarding will permanently lose your edits.
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setShowDiscardConfirm(false);
+                        pendingDiscardAction?.();
+                        setPendingDiscardAction(null);
+                      }}
+                      className="rounded bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Discard Changes
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setShowDiscardConfirm(false);
+                        setPendingDiscardAction(null);
+                      }}
+                      className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 shadow-xs hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200"
+                    >
+                      Keep Editing
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
               <label className="flex flex-col gap-1.5 text-sm text-zinc-700 dark:text-zinc-300">
@@ -508,6 +781,13 @@ export function AnnotationPanel({
                   className="rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 dark:border-zinc-700 dark:text-zinc-50"
                 />
               </label>
+
+              {/* Helpful inline content requirement prompt */}
+              {validation.boundsOk && !validation.contentOk ? (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  💡 Enter a label or a comment (or both) to save this annotation.
+                </p>
+              ) : null}
 
               {conflictState ? (
                 <div
@@ -560,8 +840,9 @@ export function AnnotationPanel({
                         {conflictState.isDeleted ? (
                           <button
                             type="button"
-                            onClick={handleCancel}
-                            className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
+                            disabled={busy}
+                            onClick={executeCancel}
+                            className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-900 disabled:opacity-50 dark:bg-amber-700 dark:hover:bg-amber-600"
                           >
                             Dismiss
                           </button>
@@ -569,15 +850,17 @@ export function AnnotationPanel({
                           <>
                             <button
                               type="button"
+                              disabled={busy}
                               onClick={handleAdoptLatestVersion}
-                              className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600"
+                              className="rounded bg-amber-800 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-amber-900 disabled:opacity-50 dark:bg-amber-700 dark:hover:bg-amber-600"
                             >
                               Keep My Draft & Adopt v{conflictState.serverVersion}
                             </button>
                             <button
                               type="button"
+                              disabled={busy}
                               onClick={handleDiscardDraft}
-                              className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 shadow-xs transition-colors hover:bg-amber-100 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200 dark:hover:bg-zinc-800"
+                              className="rounded border border-amber-400 bg-white px-3 py-1.5 text-xs font-medium text-amber-950 shadow-xs transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-700 dark:bg-zinc-900 dark:text-amber-200 dark:hover:bg-zinc-800"
                             >
                               Discard My Draft & Load Server Note
                             </button>
@@ -600,16 +883,16 @@ export function AnnotationPanel({
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   type="submit"
-                  disabled={busy}
-                  className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
+                  disabled={!validation.ok || busy}
+                  className="rounded-md bg-foreground px-5 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
                 >
                   {busy ? "Saving…" : editing ? "Update annotation" : "Save annotation"}
                 </button>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={handleCancel}
-                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                  onClick={handleCancelRequest}
+                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-50 dark:hover:bg-zinc-800"
                 >
                   Cancel
                 </button>
@@ -686,26 +969,33 @@ export function AnnotationPanel({
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => beginEdit(note)}
-                          className="text-xs font-medium text-zinc-600 hover:text-black dark:text-zinc-400 dark:hover:text-zinc-50"
+                          onClick={() => handleBeginEditRequest(note)}
+                          className="text-xs font-medium text-zinc-600 hover:text-black disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-50"
                         >
                           Edit
                         </button>
                         {pendingDeleteId === note.id ? (
-                          <div className="flex items-center gap-2">
+                          <div
+                            role="alertdialog"
+                            aria-label={`Confirm deleting note ${note.label || note.comment || ""}`}
+                            className="flex items-center gap-2"
+                          >
+                            <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+                              Delete note?
+                            </span>
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => void confirmDelete(note)}
-                              className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400"
+                              className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 dark:text-red-400"
                             >
-                              Confirm delete
+                              {busy ? "Deleting…" : "Confirm"}
                             </button>
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => setPendingDeleteId(null)}
-                              className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300"
+                              className="text-xs text-zinc-500 hover:text-zinc-700 disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-300"
                             >
                               Cancel
                             </button>
@@ -715,7 +1005,7 @@ export function AnnotationPanel({
                             type="button"
                             disabled={busy}
                             onClick={() => setPendingDeleteId(note.id)}
-                            className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                            className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
                           >
                             Delete
                           </button>

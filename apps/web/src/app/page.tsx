@@ -45,7 +45,11 @@ export default async function Home({ searchParams }: HomeProps) {
               Manage, search, and annotate your audio tracks.
             </p>
           </div>
-          <AudioLibrary initialFiles={files} initialQuery={initialQuery} />
+          <AudioLibrary
+            initialFiles={files}
+            initialQuery={initialQuery}
+            currentUserId={user.id}
+          />
         </>
       ) : (
         <>

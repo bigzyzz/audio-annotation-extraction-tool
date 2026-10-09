@@ -453,7 +453,7 @@ Title: T21: R6 Status Visibility & Recovery Messaging
 
 ### T22 — Error Prevention & Destructive Action Safeguards
 
-**Assignee:** (`feat/r6-t22-error-prevention`) — #60  
+**Assignee:** Aziz (`feat/r6-t22-error-prevention`) — #60 — **Done**  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 

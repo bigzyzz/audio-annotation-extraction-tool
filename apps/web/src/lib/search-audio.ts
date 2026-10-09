@@ -7,7 +7,7 @@ import { parseSearchQuery } from "./search-query";
  * Standard columns selected for audio file list views and search results.
  */
 export const AUDIO_SEARCH_COLUMNS =
-  "id, filename, format, duration_seconds, created_at, waveform_peaks_path" as const;
+  "id, filename, format, duration_seconds, created_at, waveform_peaks_path, owner_id" as const;
 
 export type SearchAudioFilesResult =
   | { ok: true; files: FileListItem[] }

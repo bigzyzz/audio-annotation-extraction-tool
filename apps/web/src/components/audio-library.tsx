@@ -6,22 +6,30 @@ import { createClient } from "@/lib/supabase/client";
 import { FileList, type FileListItem } from "@/components/file-list";
 import { SearchField } from "@/components/search-field";
 import { searchAudioFiles } from "@/lib/search-audio";
+import { deleteAudioFileAction } from "@/app/files/actions";
+import { ActionableErrorAlert } from "@/components/actionable-error-alert";
+import { useToast } from "@/components/toast";
 
 const POLL_MS = 2000;
 
 type AudioLibraryProps = {
   initialFiles: FileListItem[];
   initialQuery?: string;
+  currentUserId?: string | null;
 };
 
 export function AudioLibrary({
   initialFiles,
   initialQuery = "",
+  currentUserId: initialUserId = null,
 }: AudioLibraryProps) {
+  const { toast } = useToast();
   const [files, setFiles] = useState<FileListItem[]>(initialFiles);
   const [query, setQuery] = useState(initialQuery);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(initialUserId);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Ref keeps track of the latest search query for background polling
   const queryRef = useRef(query);
@@ -29,6 +37,14 @@ export function AudioLibrary({
   useEffect(() => {
     queryRef.current = query;
   }, [query]);
+
+  useEffect(() => {
+    if (initialUserId) return;
+    const supabase = createClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null);
+    });
+  }, [initialUserId]);
 
   const load = useCallback(async (searchFilter: string) => {
     const supabase = createClient();
@@ -84,6 +100,25 @@ export function AudioLibrary({
     [],
   );
 
+  const handleDeleteFile = useCallback(
+    async (file: FileListItem) => {
+      setDeletingId(file.id);
+      setError(null);
+
+      const result = await deleteAudioFileAction(file.id);
+      setDeletingId(null);
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      setFiles((prev) => prev.filter((f) => f.id !== file.id));
+      toast.info("Track deleted", `“${file.filename}” was permanently removed.`);
+    },
+    [toast],
+  );
+
   return (
     <div className="flex w-full flex-col gap-6">
       <section className="flex flex-col gap-4">
@@ -120,7 +155,22 @@ export function AudioLibrary({
             </Link>
           </div>
         </div>
-        <FileList files={files} error={error} searchQuery={query} />
+
+        {error ? (
+          <ActionableErrorAlert
+            error={error}
+            context="upload"
+            onDismiss={() => setError(null)}
+          />
+        ) : null}
+
+        <FileList
+          files={files}
+          searchQuery={query}
+          currentUserId={currentUserId}
+          onDeleteFile={handleDeleteFile}
+          isDeletingId={deletingId}
+        />
       </section>
     </div>
   );
