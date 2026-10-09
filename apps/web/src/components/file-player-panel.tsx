@@ -30,6 +30,9 @@ import {
 } from "@/lib/annotation-realtime";
 import { CollaboratorPresenceBadge } from "@/components/collaborator-presence";
 import { SyncStatusIndicator } from "@/components/sync-status-indicator";
+import { WaveformSkeleton } from "@/components/waveform-skeleton";
+import { ActionableErrorAlert } from "@/components/actionable-error-alert";
+import { useToast } from "@/components/toast";
 import {
   parsePresenceState,
   createThrottler,
@@ -92,6 +95,8 @@ export function FilePlayerPanel({
     slaPass: true,
     lastSyncedAt: null,
   });
+  const { toast } = useToast();
+  const prevStatusRef = useRef<RealtimeConnectionStatus>("connecting");
   const playheadStampRef = useRef(0);
   const seekTokenRef = useRef(0);
   const previewTokenRef = useRef(0);
@@ -102,6 +107,19 @@ export function FilePlayerPanel({
   const clientIdRef = useRef<string>(
     currentUser?.id ?? `anon-${initialFile.id.slice(0, 8)}`,
   );
+
+  useEffect(() => {
+    if (
+      connectionStatus === "connected" &&
+      (prevStatusRef.current === "disconnected" || prevStatusRef.current === "reconnecting")
+    ) {
+      toast.success(
+        "Real-time sync restored",
+        "Collaborative session is back online.",
+      );
+    }
+    prevStatusRef.current = connectionStatus;
+  }, [connectionStatus, toast]);
 
   useEffect(() => {
     playheadBroadcasterRef.current = createThrottler<number>((seconds) => {
@@ -554,37 +572,99 @@ export function FilePlayerPanel({
           </div>
         </div>
 
-        {error ? (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        ) : null}
-
-        {!file.waveform_peaks_path ? (
-          <p
-            role="status"
-            aria-busy="true"
-            className="text-sm text-zinc-600 dark:text-zinc-400"
+        {connectionStatus === "disconnected" ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-200"
           >
-            Preparing waveform…
-          </p>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              <span className="font-medium">
+                Real-time sync disconnected. Annotations and live collaborator presence are paused.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReconnectAttempt(1);
+                void reconcileServerState();
+              }}
+              className="rounded bg-amber-800 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-amber-900 dark:bg-amber-700 dark:hover:bg-amber-600 transition-colors"
+            >
+              Reconnect Now
+            </button>
+          </div>
         ) : null}
 
-        <WaveformPlayer
-          audioUrl={audioUrl}
-          peaks={peaks}
-          title={file.filename}
-          annotations={annotations}
-          seekRequest={seekRequest}
-          previewRequest={previewRequest}
-          isSelecting={selectionTarget !== null}
-          draftRange={draftRange}
-          onDraftRangeChange={setDraftRange}
-          editingAnnotationId={editingId}
-          selectionMode={selectionTarget === "extraction" ? "range_only" : "all"}
-          onTimeSelect={stampTime}
-          onTimeUpdate={onTimeUpdate}
-        />
+        {connectionStatus === "reconnecting" ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2.5 rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-2.5 text-xs text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/40 dark:text-blue-200"
+          >
+            <svg
+              className="h-3.5 w-3.5 animate-spin text-blue-600 dark:text-blue-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span>
+              Reconnecting to collaborative session (attempt {reconnectAttempt})…
+            </span>
+          </div>
+        ) : null}
+
+        {error ? (
+          <ActionableErrorAlert
+            error={error}
+            context="general"
+            onRetry={loadFile}
+            onDismiss={() => setError(null)}
+          />
+        ) : null}
+
+        {!file.waveform_peaks_path || (!peaks && !error) ? (
+          <WaveformSkeleton
+            filename={file.filename}
+            format={file.format}
+            durationSeconds={file.duration_seconds}
+            message={
+              !file.waveform_peaks_path
+                ? "Worker is generating waveform peaks from audio stream…"
+                : "Loading waveform audio data…"
+            }
+          />
+        ) : (
+          <WaveformPlayer
+            audioUrl={audioUrl}
+            peaks={peaks}
+            title={file.filename}
+            annotations={annotations}
+            seekRequest={seekRequest}
+            previewRequest={previewRequest}
+            isSelecting={selectionTarget !== null}
+            draftRange={draftRange}
+            onDraftRangeChange={setDraftRange}
+            editingAnnotationId={editingId}
+            selectionMode={selectionTarget === "extraction" ? "range_only" : "all"}
+            onTimeSelect={stampTime}
+            onTimeUpdate={onTimeUpdate}
+          />
+        )}
       </div>
 
       {/* Workspace Navigation Tabs */}

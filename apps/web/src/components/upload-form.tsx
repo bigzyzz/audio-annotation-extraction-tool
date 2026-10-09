@@ -5,30 +5,20 @@ import { useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { validateAudioFile } from "@/lib/audio-validate";
 import { recordUploadedAudio } from "@/app/upload/actions";
+import { ActionableErrorAlert } from "@/components/actionable-error-alert";
+import { useToast } from "@/components/toast";
 
 const AUDIO_BUCKET = "audio";
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
 
 type Status = "idle" | "validating" | "uploading" | "saving";
 
-function statusLabel(status: Status): string | null {
-  switch (status) {
-    case "validating":
-      return "Checking file…";
-    case "uploading":
-      return "Uploading…";
-    case "saving":
-      return "Saving…";
-    default:
-      return null;
-  }
-}
-
 type UploadFormProps = {
   onUploaded?: () => void;
 };
 
 export function UploadForm({ onUploaded }: UploadFormProps) {
+  const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -108,7 +98,9 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
     }
 
     setStatus("idle");
-    setSuccess(`Uploaded “${file.name}”.`);
+    const successMsg = `Uploaded “${file.name}”.`;
+    setSuccess(successMsg);
+    toast.success("Upload successful", `“${file.name}” is now in your library and ready to annotate.`);
     setFile(null);
     if (inputRef.current) inputRef.current.value = "";
     onUploaded?.();
@@ -128,7 +120,7 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
           const dropped = event.dataTransfer.files[0];
           if (dropped) choose(dropped);
         }}
-        className={`rounded-md border border-dashed px-4 py-8 text-center text-sm ${
+        className={`rounded-md border border-dashed px-4 py-8 text-center text-sm transition-colors ${
           dragOver
             ? "border-zinc-900 bg-black/[.04] dark:border-zinc-200 dark:bg-white/[.08]"
             : "border-zinc-300 dark:border-zinc-700"
@@ -154,18 +146,17 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
         />
         {file && (
           <p className="mt-3 text-zinc-700 dark:text-zinc-300">
-            Selected: {file.name}
+            Selected: <span className="font-semibold">{file.name}</span> ({(file.size / (1024 * 1024)).toFixed(1)} MB)
           </p>
         )}
       </div>
 
       {error && (
-        <p
-          role="alert"
-          className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-        >
-          {error}
-        </p>
+        <ActionableErrorAlert
+          error={error}
+          context="upload"
+          onDismiss={() => setError(null)}
+        />
       )}
 
       {success && (
@@ -183,18 +174,99 @@ export function UploadForm({ onUploaded }: UploadFormProps) {
         </div>
       )}
 
-      {statusLabel(status) && (
-        <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">
-          {statusLabel(status)}
-        </p>
+      {/* Accessible Multi-Phase Progress Spinner */}
+      {busy && (
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="flex flex-col gap-2 rounded-lg border border-blue-200 bg-blue-50/80 p-3.5 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-200"
+        >
+          <div className="flex items-center gap-2.5">
+            <svg
+              className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span className="font-semibold">
+              {status === "validating"
+                ? "Validating audio headers & format…"
+                : status === "uploading"
+                  ? "Uploading audio file to cloud storage…"
+                  : "Registering track in library database…"}
+            </span>
+          </div>
+
+          {/* Stepper indicators */}
+          <div className="flex items-center gap-1.5 pt-1 text-[11px] text-blue-700/80 dark:text-blue-300/80">
+            <span className={status === "validating" ? "font-bold text-blue-900 dark:text-blue-100" : ""}>
+              1. Validation
+            </span>
+            <span>→</span>
+            <span className={status === "uploading" ? "font-bold text-blue-900 dark:text-blue-100" : ""}>
+              2. Upload
+            </span>
+            <span>→</span>
+            <span className={status === "saving" ? "font-bold text-blue-900 dark:text-blue-100" : ""}>
+              3. Register
+            </span>
+          </div>
+        </div>
       )}
 
       <button
         type="submit"
         disabled={busy || !file}
-        className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
       >
-        {busy ? statusLabel(status) : "Upload"}
+        {busy ? (
+          <>
+            <svg
+              className="h-4 w-4 animate-spin text-current"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            <span>
+              {status === "validating"
+                ? "Checking…"
+                : status === "uploading"
+                  ? "Uploading…"
+                  : "Saving…"}
+            </span>
+          </>
+        ) : (
+          "Upload"
+        )}
       </button>
     </form>
   );

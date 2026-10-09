@@ -433,7 +433,7 @@ Parent: GitHub #8. Close #8 when T21–T24 are Done. RK6 → Mitigated when UI h
 
 ### T21 — Status Visibility & Recovery Messaging
 
-**Assignee:** (`feat/r6-t21-status-visibility`) — #59  
+**Assignee:** (`feat/r6-t21-status-visibility`) — #59 — **Done**  
 **Blocked by:** nothing  
 **Blocks:** nothing  
 

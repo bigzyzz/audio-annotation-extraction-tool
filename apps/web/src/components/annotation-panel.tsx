@@ -16,6 +16,8 @@ import {
   reconcileDraftWithServer,
 } from "@/lib/annotation-realtime";
 import { formatDurationSeconds } from "@/lib/format-duration";
+import { ActionableErrorAlert } from "@/components/actionable-error-alert";
+import { useToast } from "@/components/toast";
 
 export type AnnotationListItem = Annotation & {
   author_username: string | null;
@@ -116,6 +118,7 @@ export function AnnotationPanel({
   onEditingChange,
   onPreviewRange,
 }: AnnotationPanelProps) {
+  const { toast } = useToast();
   const controlled = controlledAnnotations !== undefined;
   const [loaded, setLoaded] = useState<AnnotationListItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -378,7 +381,13 @@ export function AnnotationPanel({
       return;
     }
 
+    const wasEditing = targetNote != null;
+    const savedLabel = label.trim();
     handleCancel();
+    toast.success(
+      wasEditing ? "Annotation updated" : "Annotation added",
+      savedLabel ? `“${savedLabel}” saved to timeline.` : "Saved to timeline.",
+    );
     await refresh();
   }
 
@@ -394,6 +403,7 @@ export function AnnotationPanel({
       return;
     }
 
+    toast.info("Annotation deleted", "Note removed from timeline.");
     if (editingId === note.id) handleCancel();
     setPendingDeleteId(null);
     await refresh();
@@ -580,12 +590,11 @@ export function AnnotationPanel({
               ) : null}
 
               {error ? (
-                <p
-                  role="alert"
-                  className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-                >
-                  {error}
-                </p>
+                <ActionableErrorAlert
+                  error={error}
+                  context="annotation"
+                  onDismiss={() => setError(null)}
+                />
               ) : null}
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
@@ -618,9 +627,12 @@ export function AnnotationPanel({
           </div>
 
           {loadError ? (
-            <p role="status" className="text-sm text-red-600 dark:text-red-400">
-              {loadError}
-            </p>
+            <ActionableErrorAlert
+              error={loadError}
+              context="annotation"
+              onRetry={refresh}
+              onDismiss={() => setLoadError(null)}
+            />
           ) : null}
 
           {annotations.length === 0 ? (

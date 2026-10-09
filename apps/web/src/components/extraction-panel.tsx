@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { ExtractionJob, ExtractionJobStatus } from "@audio-tool/shared-types";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -15,6 +15,8 @@ import {
   validateExtractionTimes,
 } from "@/lib/extraction";
 import { formatDurationSeconds } from "@/lib/format-duration";
+import { ActionableErrorAlert } from "@/components/actionable-error-alert";
+import { useToast } from "@/components/toast";
 
 function formatJobTime(isoString: string): string {
   try {
@@ -110,9 +112,11 @@ export function ExtractionPanel({
   currentUserId,
   onJobsChange,
 }: ExtractionPanelProps) {
+  const { toast } = useToast();
   const [jobs, setJobs] = useState<ExtractionJob[]>(initialJobs);
   const [loadingJobs, setLoadingJobs] = useState(initialJobs.length === 0);
   const [jobsError, setJobsError] = useState<string | null>(null);
+  const prevJobsRef = useRef<ExtractionJob[]>(initialJobs);
 
   useEffect(() => {
     onJobsChange?.(jobs);
@@ -313,6 +317,45 @@ export function ExtractionPanel({
     }
   }
 
+  const handleDownloadRef = useRef(handleDownload);
+  useEffect(() => {
+    handleDownloadRef.current = handleDownload;
+  });
+
+  // Notify user when background extraction jobs complete or fail
+  useEffect(() => {
+    const prev = prevJobsRef.current;
+    for (const newJob of jobs) {
+      const oldJob = prev.find((j) => j.id === newJob.id);
+      if (
+        oldJob &&
+        (oldJob.status === "pending" || oldJob.status === "processing")
+      ) {
+        if (newJob.status === "completed") {
+          const s = Number(newJob.start_seconds);
+          const e = Number(newJob.end_seconds);
+          toast.success(
+            "Extraction completed!",
+            `Lossless segment (${formatDurationSeconds(s)} – ${formatDurationSeconds(e)}) is ready to download.`,
+            {
+              label: "Download Audio",
+              onClick: () => {
+                void handleDownloadRef.current(newJob, "audio");
+              },
+            },
+          );
+        } else if (newJob.status === "failed") {
+          toast.error(
+            "Extraction failed",
+            newJob.error_message ||
+              "The worker encountered an issue extracting this audio segment.",
+          );
+        }
+      }
+    }
+    prevJobsRef.current = jobs;
+  }, [jobs, toast]);
+
   async function handleDeleteJob(jobId: string) {
     setIsDeletingId(jobId);
     setJobsError(null);
@@ -380,6 +423,10 @@ export function ExtractionPanel({
 
     setSubmitSuccess(
       `Extraction queued (${validation.duration.toFixed(2)}s). Lossless stream-copy in progress…`,
+    );
+    toast.info(
+      "Extraction queued",
+      `Worker is processing cut (${validation.duration.toFixed(2)}s) in background…`,
     );
     setJobs((prev) => [result.job, ...prev]);
 
@@ -549,12 +596,11 @@ export function ExtractionPanel({
               )}
 
               {submitError ? (
-                <p
-                  role="alert"
-                  className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
-                >
-                  {submitError}
-                </p>
+                <ActionableErrorAlert
+                  error={submitError}
+                  context="extraction"
+                  onDismiss={() => setSubmitError(null)}
+                />
               ) : null}
 
               {submitSuccess ? (
@@ -651,14 +697,19 @@ export function ExtractionPanel({
         {/* Extraction History & Downloads */}
         <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 Extraction History
               </h3>
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 {jobs.length} {jobs.length === 1 ? "cut" : "cuts"}
-                {hasActiveJob ? " • Refreshing…" : ""}
               </span>
+              {hasActiveJob ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  Worker polling active
+                </span>
+              ) : null}
             </div>
 
             {/* Clear All History Button */}
@@ -700,14 +751,33 @@ export function ExtractionPanel({
           </div>
 
           {jobsError ? (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-              {jobsError}
-            </p>
+            <ActionableErrorAlert
+              error={jobsError}
+              context="extraction"
+              onDismiss={() => setJobsError(null)}
+            />
           ) : null}
 
           {loadingJobs && jobs.length === 0 ? (
-            <div className="py-8 text-center text-xs text-zinc-500 dark:text-zinc-400">
-              Loading extraction jobs…
+            <div
+              role="status"
+              aria-busy="true"
+              aria-live="polite"
+              aria-label="Loading extraction jobs"
+              className="flex flex-col gap-3 py-2"
+            >
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50/50 p-4 dark:border-zinc-800 dark:bg-zinc-900/30"
+                >
+                  <div className="flex flex-col gap-2">
+                    <div className="h-4 w-32 rounded bg-zinc-200 animate-pulse dark:bg-zinc-800" />
+                    <div className="h-3 w-24 rounded bg-zinc-200 animate-pulse dark:bg-zinc-800" />
+                  </div>
+                  <div className="h-7 w-28 rounded bg-zinc-200 animate-pulse dark:bg-zinc-800" />
+                </div>
+              ))}
             </div>
           ) : jobs.length === 0 ? (
             <div className="rounded-lg border border-dashed border-zinc-200 py-10 text-center dark:border-zinc-800">
